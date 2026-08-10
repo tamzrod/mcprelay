@@ -156,7 +156,17 @@ All ten steps must pass. If any critical step fails, the MVP is NOT complete.
 - **Exit gate (G6):** OpenHands Cloud connects, authenticates via the
   connector's mechanism, discovers Notion capabilities, and no upstream
   credential is in the OpenHands sandbox.
-- **Status:** Not started (blocked on M3).
+- **Status:** **PARTIAL — BLOCKED at the Notion human-consent gate
+  (2026-08-10).** AC-M4-1 (OpenHands connects with `api_key`, no custom
+  headers, no interactive OAuth) is **PASS** — MCP `initialize` over TLS
+  confirmed (`protocolVersion: 2025-06-18`). AC-M4-6 (no Notion credential in
+  the OpenHands runtime) is **PASS** by construction (no grant exists; tool
+  calls return a clean `"Not connected"` error with no token). AC-M4-2/3/4/5 are
+  **BLOCKED**: they require a completed Notion OAuth grant, which needs a human
+  Notion account holder to consent (the G2-confirmed browser-consent
+  requirement). The deployed connector already serves the real consent flow
+  against `mcp.notion.com` (discovery → DCR → PKCE → authorize redirect
+  verified). **G6 is NOT PASS.** See [evidence/G6.md](evidence/G6.md).
 
 ## M5 — Notion end-to-end technical path validated (Phase 5)
 

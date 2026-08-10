@@ -51,6 +51,7 @@
 | O4 | Deployment/rollback is manual and error-prone, risking credential exposure during deploys. | 2 | 3 | CI/CD with secrets from a backend (never env files in VCS); rollback path tested. |
 | O5 | Secret rotation (master key, Notion OAuth, downstream keys) causes downtime or data loss. | 1 | 3 | Design rotation support (D-* in DECISIONS); test rotation in Phase 6. |
 | O6 | Dependency on Notion's hosted MCP SLA/availability with no fallback. | 2 | 2 | Out of MVP scope; document as a known dependency; future option is an alternative Notion upstream. |
+| O7 | **G6 (Phase 4) blocker:** the Notion hosted-MCP OAuth grant can only be completed by a human Notion account holder in a browser; there is no headless/service-account path. An autonomous agent cannot finalize the grant, so criteria depending on an active grant (OAuth completion, credential persistence of a real grant, authenticated upstream connection, tools/list, tool calls, grant-survival) cannot pass without operator intervention. | 3 | 2 | **Confirmed at G2 and re-confirmed live at G6 (2026-08-10):** the connector's automated OAuth chain (discovery → DCR → PKCE → authorize redirect) works against real `mcp.notion.com`, stopping at `app.notion.com/login`. Mitigation: treat operator Notion consent as a documented one-time deployment step (runbook); the deployed connector already serves `/oauth/authorize`. Not a code defect — no workaround applied. |
 
 ## Process / scope risks
 

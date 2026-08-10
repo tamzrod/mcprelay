@@ -7,15 +7,30 @@ automatically each session.
 
 - **Phase:** Phase 0 (architecture baseline) COMPLETE. **Phase 1 COMPLETE.**
   **Phase 2 COMPLETE (G4 = PASS).** **Phase 3 COMPLETE (G5 = PASS,
-  2026-08-10).** The auth boundary holds: downstream bearer API-key gate;
-  connector-hosted operator OAuth consent (`/oauth/authorize` +
+  2026-08-10).** **Phase 4 IN PROGRESS — BLOCKED at the Notion human-consent
+  gate (G6 PARTIAL, 2026-08-10).** The auth boundary holds: downstream bearer
+  API-key gate; connector-hosted operator OAuth consent (`/oauth/authorize` +
   `/oauth/callback`); Notion OAuth lifecycle (discovery → DCR → PKCE → exchange
   → refresh → rotation → `invalid_grant` → restart survival) via the SDK's
   first-party helpers; encrypted SQLite credential store (AES-256-GCM, atomic
   rotation, per-grant mutex); authenticated upstream MCP connection via explicit
   bearer header + 401-refresh-retry; no upstream credentials ever reach the
   downstream client. Validated against a mock auth server (no real Notion
-  credentials in tests). Evidence: docs/evidence/G5.md. **Phase 4 is unblocked.**
+  credentials in tests). Evidence: docs/evidence/G5.md.
+  **Phase 4 (G6) status:** the production Docker image was built (D-14) and the
+  connector deployed behind the TLS work-host ingress with a persistent
+  encrypted SQLite volume. Validated live: downstream bearer-`api_key` boundary
+  (401 on missing/invalid), MCP `initialize` over TLS, OpenHands Cloud
+  `api_key` configuration + connection, and the **real** Notion OAuth automated
+  chain (RFC 9728 → RFC 8414 → RFC 7591 DCR → PKCE S256 → 302 authorize
+  redirect to `app.notion.com/login`). **10 of 16 G6 criteria PASS; 5 are
+  BLOCKED solely on a human Notion account holder completing browser consent
+  (G2-confirmed OAuth-only, no headless path); 1 is PARTIAL (restart mechanism
+  verified, grant-survival pending consent).** This is an OAuth
+  operational/credential dependency (RISKS O7), NOT an architectural, transport,
+  or security failure — no workaround was applied. Work STOPPED per Phase 4
+  instructions; Phase 5 not begun. The deployed connector remains live and ready
+  to complete consent. Evidence: docs/evidence/G6.md.
   All three Phase 1 gates passed: **G1 = PASS** (OpenHands Cloud consumes a
   bearer `api_key` SHTTP MCP endpoint, no OAuth, no custom headers;
   docs/evidence/G1.md); **G2 = PASS** (Notion hosted MCP is OAuth 2.0 Auth Code
@@ -315,3 +330,29 @@ D-10, D-11).
 - **Security invariants (Phase 3):** never store OAuth tokens in source; never
   commit secrets; never log access/refresh tokens or the downstream key; never
   return upstream credentials through MCP; use test credentials only in tests.
+
+### Build / deploy conventions (Phase 4, per D-14)
+
+- **Production image:** `Dockerfile` (multi-stage, `node:22-bookworm-slim`):
+  `docker build -t mcprelay:phase4 .`. Build stage compiles TS +
+  `better-sqlite3`; runtime stage is non-root (`connector`, uid 1001),
+  `VOLUME /data`, `EXPOSE 8789`, entrypoint `node dist/connector.js`. Secrets
+  are runtime-env only (never baked). `.dockerignore` excludes `node_modules`,
+  `dist`, `data/`, `.env`, `.git`.
+- **Deploy:** `docker run -d --name mcprelay -p 12000:8789 -v <host>:/data`
+  with env `MCPRELAY_MASTER_KEY` (32-byte base64, fail-fast),
+  `MCPRELAY_CONNECTOR_API_KEY`, `MCPRELAY_UPSTREAM_URL=https://mcp.notion.com/mcp`,
+  `MCPRELAY_PUBLIC_BASE_URL=<public TLS URL>`, `MCPRELAY_DB_PATH=/data/connector.db`,
+  `MCPRELAY_HOST=0.0.0.0`. The work-host TLS ingress maps a public HTTPS URL to
+  container port 8789 (the TLS reverse-proxy path required by D-09/D-14).
+- **Operator Notion consent (one-time):** visit
+  `<PUBLIC_BASE_URL>/oauth/authorize` in a browser → log in to Notion → approve
+  → connector exchanges + persists the encrypted grant. Until this is done the
+  connector starts grant-less (serves `/oauth/authorize`; upstream connects
+  lazily) and `tools/list`/`tools/call` return `"Not connected"`. **This human
+  step is the G6 blocker (RISKS O7) — not a code defect.**
+- **Security invariants (Phase 4):** generate secrets at runtime
+  (`openssl rand -base64 32` / `openssl rand -hex 24`); store raw secret values
+  only in a mode-600 file **outside** the repo; never bake secrets into the
+  image; verify with `git grep` + log greps that no master key / API key /
+  token appears in logs, MCP responses, the DB file, or git (see G6 evidence).

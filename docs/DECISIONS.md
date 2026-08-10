@@ -415,6 +415,37 @@
   rotation without data loss ✓ (env + restart). Per-client keys deferred to
   Phase 8 (RISKS S3).
 
+## D-14 — Phase 4 deployment topology (production Docker image + TLS ingress)
+
+- **Status:** **DECIDED (2026-08-10)** — Phase 4 (G6). Refines D-09's
+  "Docker + reverse-proxy TLS" deployment target to the concrete, validated
+  topology. No architectural change; records what was built and exercised.
+- **Decision:**
+  - **Image:** multi-stage `Dockerfile` (`node:22-bookworm-slim`): build stage
+    compiles TypeScript (strict) + `better-sqlite3` native bindings; runtime
+    stage ships only `dist/` + production deps, runs as non-root `connector`
+    (uid 1001), `VOLUME /data`, `EXPOSE 8789`, entrypoint `node dist/connector.js`.
+    Secrets are never baked into the image (runtime env only).
+  - **TLS reverse proxy:** the connector listens on `0.0.0.0:8789` behind a
+    TLS-terminating work-host ingress (`https://work-…prod-runtime.all-hands.dev`
+    → container port 8789). `MCPRELAY_PUBLIC_BASE_URL` is set to the public TLS
+    URL so the OAuth `redirect_uri` (`…/oauth/callback`) is reachable by Notion.
+  - **Persistent storage:** a Docker volume mounts `/data/connector.db` (SQLite,
+    WAL) so the encrypted credential store (D-10) survives container restart.
+  - **Secrets:** `MCPRELAY_MASTER_KEY` (32-byte base64, `openssl rand -base64
+    32`) and `MCPRELAY_CONNECTOR_API_KEY` are provided via env at runtime; the
+    raw values live only in a mode-600 file **outside** the repo (never in VCS).
+  - **Upstream:** `MCPRELAY_UPSTREAM_URL=https://mcp.notion.com/mcp` (real
+    Notion hosted MCP).
+- **Rationale:** matches D-09 exactly; validated live at G6 (image builds,
+  deploys, persists, enforces auth, serves real Notion OAuth through TLS). The
+  non-root user and unbaked-secrets posture satisfy the Phase 4 security
+  invariants.
+- **G6 note (not a decision defect):** completing the Notion OAuth grant
+  requires a human Notion account holder's browser consent (G2, O7). This is an
+  operational dependency on the operator, not a deployment-design issue; the
+  deployed connector already serves the consent flow. See [evidence/G6.md](evidence/G6.md).
+
 ## Summary of decision status
 
 | ID | Decision | Status |
@@ -432,6 +463,7 @@
 | D-11 | Operator OAuth consent UX | **DECIDED (2026-08-10, Phase 3 entry)** — connector-hosted browser flow (`/oauth/authorize` + `/oauth/callback`) |
 | D-12 | MCP SDK package/version + OAuth path | **DECIDED (2026-08-10, Phase 3 entry)** — remain on combined `@modelcontextprotocol/sdk` v1.30.0; use native `./client/auth.js` helpers; no `openid-client`; no transport `authProvider` auto-path |
 | D-13 | Downstream client auth boundary | **DECIDED (2026-08-10, Phase 3 entry)** — bearer `api_key`; scrypt-hashed in store; provisioned via `MCPRELAY_CONNECTOR_API_KEY`; 401 on invalid |
+| D-14 | Phase 4 deployment topology | **DECIDED (2026-08-10, Phase 4)** — multi-stage Docker image (non-root); TLS work-host ingress; persistent `/data` volume; runtime-env secrets (never baked/VCS); real Notion upstream |
 
 ## Gate-status record
 
@@ -445,8 +477,8 @@ downstream phases it guards must not begin (see [ROADMAP.md](ROADMAP.md)).
 | G2 — Notion OAuth behavior | Phase 1 (M1) | Phase 3 onward | PASS (2026-08-10) | [docs/evidence/G2.md](evidence/G2.md) |
 | G3 — Notion MCP tool surface sufficient | Phase 1 (M1) | Phase 5 onward | SUFFICIENT (2026-08-10) | [docs/evidence/G3.md](evidence/G3.md) |
 | G4 — Minimal connector forwards MCP | Phase 2 (M2) | Phase 3 onward | PASS (2026-08-10) | [docs/evidence/G4.md](evidence/G4.md) |
-| G5 — Auth boundary holds | Phase 3 (M3) | Phase 4 onward | Not started | — |
-| G6 — OpenHands connects via connector, isolation holds | Phase 4 (M4) | Phase 5 onward | Not started | — |
+| G5 — Auth boundary holds | Phase 3 (M3) | Phase 4 onward | PASS (2026-08-10) | [docs/evidence/G5.md](evidence/G5.md) |
+| G6 — OpenHands connects via connector, isolation holds | Phase 4 (M4) | Phase 5 onward | PARTIAL — BLOCKED at Notion human-consent gate (2026-08-10); 10/16 criteria PASS, 5 blocked on operator consent, 1 partial | [docs/evidence/G6.md](evidence/G6.md) |
 | G7 — Complete technical path validated | Phase 5 (M5) | Phase 6 onward | Not started | — |
 | G8 — MVP complete (10-step, reproducible) | Phase 6 (M6) | Phase 7 onward | Not started | — |
 | G9 — Generalization evidenced | Phase 7 (M7) | Phase 8 onward | Not started | — |

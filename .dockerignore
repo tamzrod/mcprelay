@@ -1,0 +1,25 @@
+# Build artifacts & deps (rebuilt inside the image)
+node_modules/
+dist/
+
+# Secrets & local state — never bake into an image
+data/
+*.db
+*.db-shm
+*.db-wal
+.env
+.env.local
+*.local
+
+# VCS & docs (not needed at runtime)
+.git/
+.gitignore
+.vscode/
+.idea/
+.DS_Store
+
+# Test artifacts
+coverage/
+.nyc_output/
+*.log
+npm-debug.log*

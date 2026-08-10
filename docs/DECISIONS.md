@@ -150,10 +150,10 @@
 | D-02 | Connector owns upstream auth; client never sees upstream creds | Resolved |
 | D-03 | Notion first, but connector stays domain-agnostic | Resolved |
 | D-04 | Multi-tenant data model now, multi-tenancy later | Resolved |
-| D-05 | Downstream MVP auth = connector API key (bearer) | Resolved (pending G1 confirmation) |
+| D-05 | Downstream MVP auth = connector API key (bearer) | Resolved (confirmed by G1) |
 | D-06 | Advertise mediated intersection of capabilities | Resolved |
 | D-07 | Transparent JSON-RPC forwarding | Resolved |
-| D-08 | MVP may be stateless; SSE is additive | Proposed (confirm via G1/G2, G4) |
+| D-08 | MVP may be stateless; SSE is additive | Proposed (confirm via G2, then G4) |
 | D-09 | Language/runtime + deployment target | Deferred — decide at M1 (Phase 1) |
 | D-10 | Credential-store backend + master key | Deferred — decide at M3 (Phase 3) |
 | D-11 | Operator OAuth consent UX | Deferred — decide at M3 (Phase 3) |
@@ -166,7 +166,7 @@ downstream phases it guards must not begin (see [ROADMAP.md](ROADMAP.md)).
 
 | Gate | After phase | Guards | Outcome | Evidence |
 | --- | --- | --- | --- | --- |
-| G1 — OpenHands Cloud compatibility | Phase 1 (M1) | Phase 2 onward | BLOCKED — VALIDATION REQUIRED | — |
+| G1 — OpenHands Cloud compatibility | Phase 1 (M1) | Phase 2 onward | PASS (2026-08-10) | [docs/evidence/G1.md](evidence/G1.md) |
 | G2 — Notion OAuth behavior | Phase 1 (M1) | Phase 3 onward | BLOCKED — VALIDATION REQUIRED | — |
 | G3 — Notion MCP tool surface sufficient | Phase 1 (M1) | Phase 5 onward | BLOCKED — VALIDATION REQUIRED | — |
 | G4 — Minimal connector forwards MCP | Phase 2 (M2) | Phase 3 onward | Not started | — |
@@ -183,7 +183,8 @@ downstream phases it guards must not begin (see [ROADMAP.md](ROADMAP.md)).
 the gate-mapped list.)
 
 1. **G1 (M1):** Can OpenHands Cloud consume a bearer `api_key` remote MCP
-   endpoint with no custom headers and no interactive OAuth? — BLOCKED.
+   endpoint with no custom headers and no interactive OAuth? — **PASS
+   (2026-08-10).** Confirmed experimentally; see [docs/evidence/G1.md](evidence/G1.md).
 2. **G2 (M1):** Notion refresh-token lifetime/revocation semantics? — BLOCKED.
 3. **G3 (M1):** Does Notion's hosted MCP tool surface cover read + update/create
    + comment read for the documentation workflow? — BLOCKED.

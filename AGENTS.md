@@ -5,11 +5,13 @@ automatically each session.
 
 ## Project state
 
-- **Phase:** Phase 0 (architecture baseline) COMPLETE. Now at **Phase 1 entry —
-  External Assumption Validation**, which is **BLOCKED — VALIDATION REQUIRED**
-  on gates G1 (OpenHands Cloud compatibility), G2 (Notion OAuth behavior), and
-  G3 (Notion MCP tool surface). **No implementation exists** and none may begin
-  until G1–G3 pass and D-09 is decided (see docs/ROADMAP.md).
+- **Phase:** Phase 0 (architecture baseline) COMPLETE. Now in **Phase 1 —
+  External Assumption Validation**. **G1 = PASS (2026-08-10)** (OpenHands Cloud
+  consumes a bearer `api_key` SHTTP MCP endpoint with no OAuth and no custom
+  headers; see docs/evidence/G1.md). G2 (Notion OAuth behavior) and G3 (Notion
+  MCP tool surface) remain **BLOCKED — VALIDATION REQUIRED**, and D-09
+  (language/runtime + deploy target) is undecided. **No implementation exists**
+  and none may begin until G2/G3 pass and D-09 is decided (see docs/ROADMAP.md).
 - **Roadmap is a strict gated contract:** a later phase MUST NOT begin until the
   previous phase's exit gate is satisfied and documented. "Code exists" is not
   completion.
@@ -66,10 +68,38 @@ automatically each session.
 ## Deferred decisions (resolve before the indicated gate)
 
 - G1/G2/G3 (Phase 1, M1) — validate OpenHands Cloud `api_key` consumption,
-  Notion OAuth token lifecycle, Notion tool surface. Currently BLOCKED.
+  Notion OAuth token lifecycle, Notion tool surface. **G1 = PASS
+  (2026-08-10)**; G2/G3 BLOCKED.
 - D-09 language/runtime + deploy target — at M1 (Phase 1).
 - D-10 credential-store backend + master key — at M3 (Phase 3).
 - D-11 operator OAuth consent UX — at M3 (Phase 3).
+
+## OpenHands Cloud — how it picks up MCP servers (G1 findings)
+
+Confirmed experimentally 2026-08-10. Relevant for the connector's downstream
+interface and for setting up any validation conversation:
+
+- Cloud conversations read MCP config from **stored user settings**
+  (`agent_settings.mcp_config`), NOT from a per-conversation override. A
+  `POST /api/v1/app-conversations` body may include `agent_settings.mcp_config`
+  and returns HTTP 202, but it is **silently ignored** — the agent sees no MCP
+  tools. Set the config **before** starting the conversation.
+- Settings are updated via `POST /api/v1/settings` with an
+  **`agent_settings_diff`** payload (deep-merged). The legacy `agent_settings`
+  key is rejected with HTTP 422 ("Use *_diff nested settings payloads instead
+  of legacy keys").
+- Stored MCP config uses the SDK dict shape, e.g.
+  `{"shttp": {"url": "...", "api_key": "...", "enabled": true}}`. The server
+  normalizes `api_key` to `auth: {strategy: "api_key", value: "***"}` — a
+  first-class auth strategy distinct from OAuth.
+- OpenHands transmits `api_key` to the MCP server as
+  `Authorization: Bearer <key>`. No custom headers are supported/needed.
+- Remote (SHTTP) tools are exposed to the agent under a transport-prefixed
+  name, e.g. `shttp_<tool>` (`shttp_g1_test`), not the raw upstream name.
+- Agent-server events: per-conversation runtime host + `X-Session-API-Key`
+  come from the app-conversation record (`conversation_url`, `session_api_key`).
+  Event search `sort_order` accepts `TIMESTAMP` (asc) or `TIMESTAMP_DESC`, NOT
+  `TIMESTAMP_ASC`.
 
 ## Research discipline
 

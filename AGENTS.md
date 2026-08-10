@@ -6,17 +6,19 @@ automatically each session.
 ## Project state
 
 - **Phase:** Phase 0 (architecture baseline) COMPLETE. Now in **Phase 1 —
-  External Assumption Validation**. **G1 = PASS (2026-08-10)** (OpenHands Cloud
-  consumes a bearer `api_key` SHTTP MCP endpoint with no OAuth and no custom
-  headers; see docs/evidence/G1.md). **G2 = PASS (2026-08-10)** (Notion hosted
-  MCP is OAuth 2.0 Auth Code + PKCE + DCR, browser-consent, OAuth-only; access
-  token ~8h/use `expires_in`; refresh token rotates each refresh, 180-day
-  absolute non-sliding cap or 30-day inactivity; `invalid_grant` terminal;
-  connector must persist DCR creds + latest rotated refresh token atomically
-  and serialize refresh per grant; see docs/evidence/G2.md). G3 (Notion MCP tool
-  surface) remains **BLOCKED — VALIDATION REQUIRED**, and D-09 (language/runtime
-  + deploy target) is undecided. **No implementation exists** and none may
-  begin until G3 passes and D-09 is decided (see docs/ROADMAP.md).
+  External Assumption Validation**. All three Phase 1 gates passed:
+  **G1 = PASS** (OpenHands Cloud consumes a bearer `api_key` SHTTP MCP
+  endpoint, no OAuth, no custom headers; docs/evidence/G1.md);
+  **G2 = PASS** (Notion hosted MCP is OAuth 2.0 Auth Code + PKCE + DCR,
+  browser-consent, OAuth-only; access token ~8h/use `expires_in`; refresh
+  token rotates each refresh, 180-day absolute non-sliding cap or 30-day
+  inactivity; `invalid_grant` terminal; docs/evidence/G2.md);
+  **G3 = SUFFICIENT** (Notion hosted MCP exposes `notion-search`+`notion-fetch`
+  for read, `notion-create-pages`/`notion-update-page` for create/update, and
+  `notion-get-comments` for reading comments; docs/evidence/G3.md). The only
+  remaining Phase 1 requirement is **D-09 (language/runtime + deploy target)**,
+  which is undecided. **No implementation exists** and none may begin until
+  D-09 is decided (see docs/ROADMAP.md).
 - **Roadmap is a strict gated contract:** a later phase MUST NOT begin until the
   previous phase's exit gate is satisfied and documented. "Code exists" is not
   completion.
@@ -74,7 +76,7 @@ automatically each session.
 
 - G1/G2/G3 (Phase 1, M1) — validate OpenHands Cloud `api_key` consumption,
   Notion OAuth token lifecycle, Notion tool surface. **G1 = PASS,
-  G2 = PASS (2026-08-10)**; G3 BLOCKED.
+  G2 = PASS, G3 = SUFFICIENT (2026-08-10)**; only D-09 remains.
 - D-09 language/runtime + deploy target — at M1 (Phase 1).
 - D-10 credential-store backend + master key — at M3 (Phase 3).
 - D-11 operator OAuth consent UX — at M3 (Phase 3).
@@ -139,6 +141,41 @@ Confirmed from official Notion docs (developers.notion.com/guides/mcp/build-mcp-
 - **Periodic reconnection is expected** (180-day cap / 30-day idle), not
   exceptional — consent UX must be easy to reach (validates D-11).
 - Live confirmation of rotation/`invalid_grant` scheduled for **G5 (Phase 3)**.
+
+## Notion hosted MCP — tool surface (G3 findings)
+
+Confirmed from official Notion docs (developers.notion.com/guides/mcp/mcp-supported-tools)
+2026-08-10. The hosted MCP at `https://mcp.notion.com/mcp` exposes the tools
+the documentation workflow needs:
+
+- **Read docs:** `notion-search` (search workspace + connected sources) +
+  `notion-fetch` (retrieve page/database/data-source content by URL/ID, returned
+  as enhanced "Notion-flavored" Markdown; `id: self` returns workspace + user
+  identity).
+- **Create docs:** `notion-create-pages` (page(s) under a page/database parent,
+  title properties + Markdown `content`; supports `template_id` and
+  `allow_async: true` + `notion-get-async-task` for large content).
+- **Update docs:** `notion-update-page` (update properties/content/icon/cover;
+  markdown commands include `replace_content` / `replace_content_range`;
+  supports `apply_template`).
+- **Read comments:** `notion-get-comments` (lists all comments/discussions on a
+  page — block-level, inline, resolved threads, full content).
+- **Create comment (optional):** `notion-create-comment` (page/block/reply).
+
+**Gaps that do NOT block the stated workflow:** block-level surgical edits
+absent (page-level markdown update is sufficient for docs); files/webhooks
+absent; data-source querying (`notion-query-data-sources`,
+`notion-query-meeting-notes`) is plan-gated (Enterprise + Notion AI). If
+block-precise editing becomes a hard requirement later, the fallback is the
+ARCHITECTURE.md §4-C path (open-source `makenotion/notion-mcp-server` or Notion
+REST block API) — not a G3 failure.
+
+**Implication for the connector:** forward Notion's tool list transparently
+(intersection with connector mediation policy, D-06); forward markdown
+payloads transparently (no content-shape transformation, D-07); advertise only
+what the upstream exposes at runtime (discovery-driven, not hardcoded — tool
+surface is not static). Live end-to-end exercise through the connector is a
+**G7 (Phase 5)** target.
 
 ## Research discipline
 

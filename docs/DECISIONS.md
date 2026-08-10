@@ -168,7 +168,7 @@ downstream phases it guards must not begin (see [ROADMAP.md](ROADMAP.md)).
 | --- | --- | --- | --- | --- |
 | G1 — OpenHands Cloud compatibility | Phase 1 (M1) | Phase 2 onward | PASS (2026-08-10) | [docs/evidence/G1.md](evidence/G1.md) |
 | G2 — Notion OAuth behavior | Phase 1 (M1) | Phase 3 onward | PASS (2026-08-10) | [docs/evidence/G2.md](evidence/G2.md) |
-| G3 — Notion MCP tool surface sufficient | Phase 1 (M1) | Phase 5 onward | BLOCKED — VALIDATION REQUIRED | — |
+| G3 — Notion MCP tool surface sufficient | Phase 1 (M1) | Phase 5 onward | SUFFICIENT (2026-08-10) | [docs/evidence/G3.md](evidence/G3.md) |
 | G4 — Minimal connector forwards MCP | Phase 2 (M2) | Phase 3 onward | Not started | — |
 | G5 — Auth boundary holds | Phase 3 (M3) | Phase 4 onward | Not started | — |
 | G6 — OpenHands connects via connector, isolation holds | Phase 4 (M4) | Phase 5 onward | Not started | — |
@@ -192,7 +192,10 @@ the gate-mapped list.)
    must persist DCR creds + latest rotated refresh token atomically and
    serialize refresh per grant. See [docs/evidence/G2.md](evidence/G2.md).
 3. **G3 (M1):** Does Notion's hosted MCP tool surface cover read + update/create
-   + comment read for the documentation workflow? — BLOCKED.
+   + comment read for the documentation workflow? — **SUFFICIENT
+   (2026-08-10).** Tools confirmed from official docs: read → `notion-search` +
+   `notion-fetch`; create → `notion-create-pages`; update → `notion-update-page`;
+   read comments → `notion-get-comments`. See [docs/evidence/G3.md](evidence/G3.md).
 4. **D-09 (M1):** Language/runtime and deployment target.
 5. **D-10 (M3):** Credential-store backend and master-key source.
 6. **D-11 (M3):** Operator OAuth consent UX.

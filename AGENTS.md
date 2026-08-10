@@ -8,10 +8,15 @@ automatically each session.
 - **Phase:** Phase 0 (architecture baseline) COMPLETE. Now in **Phase 1 —
   External Assumption Validation**. **G1 = PASS (2026-08-10)** (OpenHands Cloud
   consumes a bearer `api_key` SHTTP MCP endpoint with no OAuth and no custom
-  headers; see docs/evidence/G1.md). G2 (Notion OAuth behavior) and G3 (Notion
-  MCP tool surface) remain **BLOCKED — VALIDATION REQUIRED**, and D-09
-  (language/runtime + deploy target) is undecided. **No implementation exists**
-  and none may begin until G2/G3 pass and D-09 is decided (see docs/ROADMAP.md).
+  headers; see docs/evidence/G1.md). **G2 = PASS (2026-08-10)** (Notion hosted
+  MCP is OAuth 2.0 Auth Code + PKCE + DCR, browser-consent, OAuth-only; access
+  token ~8h/use `expires_in`; refresh token rotates each refresh, 180-day
+  absolute non-sliding cap or 30-day inactivity; `invalid_grant` terminal;
+  connector must persist DCR creds + latest rotated refresh token atomically
+  and serialize refresh per grant; see docs/evidence/G2.md). G3 (Notion MCP tool
+  surface) remains **BLOCKED — VALIDATION REQUIRED**, and D-09 (language/runtime
+  + deploy target) is undecided. **No implementation exists** and none may
+  begin until G3 passes and D-09 is decided (see docs/ROADMAP.md).
 - **Roadmap is a strict gated contract:** a later phase MUST NOT begin until the
   previous phase's exit gate is satisfied and documented. "Code exists" is not
   completion.
@@ -68,8 +73,8 @@ automatically each session.
 ## Deferred decisions (resolve before the indicated gate)
 
 - G1/G2/G3 (Phase 1, M1) — validate OpenHands Cloud `api_key` consumption,
-  Notion OAuth token lifecycle, Notion tool surface. **G1 = PASS
-  (2026-08-10)**; G2/G3 BLOCKED.
+  Notion OAuth token lifecycle, Notion tool surface. **G1 = PASS,
+  G2 = PASS (2026-08-10)**; G3 BLOCKED.
 - D-09 language/runtime + deploy target — at M1 (Phase 1).
 - D-10 credential-store backend + master key — at M3 (Phase 3).
 - D-11 operator OAuth consent UX — at M3 (Phase 3).
@@ -100,6 +105,40 @@ interface and for setting up any validation conversation:
   come from the app-conversation record (`conversation_url`, `session_api_key`).
   Event search `sort_order` accepts `TIMESTAMP` (asc) or `TIMESTAMP_DESC`, NOT
   `TIMESTAMP_ASC`.
+
+## Notion hosted MCP — OAuth lifecycle (G2 findings)
+
+Confirmed from official Notion docs (developers.notion.com/guides/mcp/build-mcp-client)
+2026-08-10. Authoritative for the connector's upstream credential subsystem:
+
+- **Auth model:** OAuth 2.0 Authorization Code + PKCE (S256) + Dynamic Client
+  Registration (RFC 7591). Built on Cloudflare `workers-oauth-provider`.
+  **OAuth-only, browser-consent-based — no upstream API key** for the hosted
+  MCP (`https://mcp.notion.com/mcp`; SSE alt `/sse`).
+- **Discovery:** MCP 401 `WWW-Authenticate` → `/.well-known/oauth-protected-resource`
+  (RFC 9728) → `/.well-known/oauth-authorization-server` (RFC 8414) →
+  `registration_endpoint` (DCR).
+- **DCR credentials (`client_id`/`client_secret`) MUST be persisted and reused**
+  — re-registering orphans prior grants. CIMD is a supported alternative.
+- **Access token:** ~8h, but "subject to change" — **always drive off
+  `expires_in`**, never hardcode. Refresh 5–10 min before expiry.
+- **Refresh token:** issued on every token response; **rotates on every refresh**
+  (new `refresh_token` returned, old retired). Expires at whichever comes first:
+  **180-day absolute cap from first authorization (does NOT slide)** or **30
+  consecutive days of inactivity**. Next refresh then returns `invalid_grant`.
+- **`invalid_grant` is terminal:** clear stored tokens, re-authorize, do NOT
+  retry-loop. Also returned on client-credential mismatch, explicit
+  revocation/policy, and **concurrent refreshes of the same grant** (losers).
+- **Persistence requirements:** DCR creds + current `access_token`/`expires_in`
+  + **latest rotated** `refresh_token` + `bot_id` + `owner`/workspace. Update
+  `(access_token, refresh_token)` **atomically** on each rotation. **Serialize
+  refresh per grant** (mutex/distributed lock).
+- **Restart:** credentials survive restart **iff** DCR creds + latest rotated
+  refresh token were durably persisted. Crash mid-rotation that loses the new
+  refresh token kills the connection (old one retired) → re-authorize.
+- **Periodic reconnection is expected** (180-day cap / 30-day idle), not
+  exceptional — consent UX must be easy to reach (validates D-11).
+- Live confirmation of rotation/`invalid_grant` scheduled for **G5 (Phase 3)**.
 
 ## Research discipline
 

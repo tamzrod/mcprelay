@@ -167,7 +167,7 @@ downstream phases it guards must not begin (see [ROADMAP.md](ROADMAP.md)).
 | Gate | After phase | Guards | Outcome | Evidence |
 | --- | --- | --- | --- | --- |
 | G1 — OpenHands Cloud compatibility | Phase 1 (M1) | Phase 2 onward | PASS (2026-08-10) | [docs/evidence/G1.md](evidence/G1.md) |
-| G2 — Notion OAuth behavior | Phase 1 (M1) | Phase 3 onward | BLOCKED — VALIDATION REQUIRED | — |
+| G2 — Notion OAuth behavior | Phase 1 (M1) | Phase 3 onward | PASS (2026-08-10) | [docs/evidence/G2.md](evidence/G2.md) |
 | G3 — Notion MCP tool surface sufficient | Phase 1 (M1) | Phase 5 onward | BLOCKED — VALIDATION REQUIRED | — |
 | G4 — Minimal connector forwards MCP | Phase 2 (M2) | Phase 3 onward | Not started | — |
 | G5 — Auth boundary holds | Phase 3 (M3) | Phase 4 onward | Not started | — |
@@ -185,7 +185,12 @@ the gate-mapped list.)
 1. **G1 (M1):** Can OpenHands Cloud consume a bearer `api_key` remote MCP
    endpoint with no custom headers and no interactive OAuth? — **PASS
    (2026-08-10).** Confirmed experimentally; see [docs/evidence/G1.md](evidence/G1.md).
-2. **G2 (M1):** Notion refresh-token lifetime/revocation semantics? — BLOCKED.
+2. **G2 (M1):** Notion refresh-token lifetime/revocation semantics? — **PASS
+   (2026-08-10).** OAuth 2.0 Auth Code + PKCE + DCR; access token ~8h (use
+   `expires_in`); refresh token rotates on every refresh, 180-day absolute
+   non-sliding cap or 30-day inactivity; `invalid_grant` terminal; connector
+   must persist DCR creds + latest rotated refresh token atomically and
+   serialize refresh per grant. See [docs/evidence/G2.md](evidence/G2.md).
 3. **G3 (M1):** Does Notion's hosted MCP tool surface cover read + update/create
    + comment read for the documentation workflow? — BLOCKED.
 4. **D-09 (M1):** Language/runtime and deployment target.

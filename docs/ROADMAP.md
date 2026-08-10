@@ -34,7 +34,7 @@ pass *before* any connector code is written (Phase 2).
 | Gate | After phase | Blocks until satisfied | Current status |
 | --- | --- | --- | --- |
 | G1 — OpenHands Cloud compatibility confirmed | Phase 1 | Phase 2 onward | **PASS (2026-08-10)** — see [evidence/G1.md](evidence/G1.md) |
-| G2 — Notion OAuth behavior confirmed | Phase 1 | Phase 3 onward | **BLOCKED — VALIDATION REQUIRED** |
+| G2 — Notion OAuth behavior confirmed | Phase 1 | Phase 3 onward | **PASS (2026-08-10)** — see [evidence/G2.md](evidence/G2.md) |
 | G3 — Notion MCP tool surface confirmed sufficient | Phase 1 | Phase 5 onward | **BLOCKED — VALIDATION REQUIRED** |
 | G4 — Minimal connector forwards MCP (mock upstream) | Phase 2 | Phase 3 onward | Not started |
 | G5 — Auth boundary holds (OAuth + secure store + refresh + restart) | Phase 3 | Phase 4 onward | Not started |
@@ -135,9 +135,9 @@ pass *before* any connector code is written (Phase 2).
 - **Decision required:** D-09 (must). D-10/D-11 inputs gathered (decided at
   Phase 3 entry).
 
-> **PHASE 1 STATUS: IN PROGRESS.** G1 = PASS (2026-08-10). G2 and G3 are not
-> yet validated and D-09 is undecided. No implementation may begin until G2,
-> G3, and D-09 are also resolved.
+> **PHASE 1 STATUS: IN PROGRESS.** G1 = PASS (2026-08-10); G2 = PASS
+> (2026-08-10). G3 is not yet validated and D-09 is undecided. No
+> implementation may begin until G3 and D-09 are also resolved.
 
 ---
 

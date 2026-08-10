@@ -82,13 +82,15 @@ All ten steps must pass. If any critical step fails, the MVP is NOT complete.
     for page read, page update/create, and comment read. **SUFFICIENT**
     required. ***SUFFICIENT (2026-08-10)*** — see [evidence/G3.md](evidence/G3.md)
   - AC-M1-4: D-09 (language/runtime + deployment target) recorded with rationale.
+    ***DECIDED (2026-08-10)*** — TypeScript/Node.js + `@modelcontextprotocol/sdk`;
+    SQLite creds; Docker + reverse-proxy TLS. See
+    [DECISIONS.md §D-09](DECISIONS.md#d-09--implementation-languageruntime-and-deployment-target).
 - **Exit gate:** G1=PASS **and** G2=PASS **and** G3=SUFFICIENT **and** D-09
   decided.
 - **Failure actions:** G1 FAIL → reassess D-05; G2 unestablished → reassess
   D-10/D-11; G3 INSUFFICIENT → reassess use case (ARCHITECTURE §4-C).
-- **Status:** **GATES PASSED — D-09 REMAINING.** G1=PASS, G2=PASS,
-  G3=SUFFICIENT (all 2026-08-10). Only D-09 (language/runtime + deploy target)
-  remains before Phase 1 exits.
+- **Status:** **COMPLETE.** G1=PASS, G2=PASS, G3=SUFFICIENT (all 2026-08-10),
+  and D-09=DECIDED (2026-08-10). Phase 1 exit gate satisfied; Phase 2 unblocked.
 
 ## M2 — Minimal connector forwards MCP (Phase 2)
 
@@ -239,6 +241,9 @@ All ten steps must pass. If any critical step fails, the MVP is NOT complete.
 3. **G3 (M1):** Does Notion's hosted MCP tool surface cover read + update/create
    + comment read for the documentation workflow? — **SUFFICIENT
    (2026-08-10).** See [evidence/G3.md](evidence/G3.md).
-4. **D-09 (M1):** Language/runtime + deployment target.
+4. **D-09 (M1):** Language/runtime + deployment target — **DECIDED
+   (2026-08-10):** TypeScript/Node.js + `@modelcontextprotocol/sdk`, SQLite
+   creds, Docker + reverse-proxy TLS. See
+   [DECISIONS.md §D-09](DECISIONS.md#d-09--implementation-languageruntime-and-deployment-target).
 5. **D-10 (M3):** Credential-store backend + master-key source.
 6. **D-11 (M3):** Operator OAuth consent UX.

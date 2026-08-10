@@ -135,10 +135,10 @@ pass *before* any connector code is written (Phase 2).
 - **Decision required:** D-09 (must). D-10/D-11 inputs gathered (decided at
   Phase 3 entry).
 
-> **PHASE 1 STATUS: GATES PASSED — D-09 REMAINING.** G1 = PASS, G2 = PASS,
-> G3 = SUFFICIENT (all 2026-08-10). The only remaining Phase 1 requirement is
-> D-09 (language/runtime + deployment target). No implementation may begin
-> until D-09 is decided.
+> **PHASE 1 STATUS: COMPLETE.** G1 = PASS, G2 = PASS, G3 = SUFFICIENT (all
+> 2026-08-10), and D-09 = DECIDED (2026-08-10): TypeScript/Node.js +
+> `@modelcontextprotocol/sdk`, SQLite credential store, Docker + reverse-proxy
+> TLS. All Phase 1 exit-gate requirements are satisfied. Phase 2 is unblocked.
 
 ---
 
@@ -153,7 +153,10 @@ pass *before* any connector code is written (Phase 2).
 - **Out of scope:** Real Notion OAuth (Phase 3); any credential store; any
   downstream auth beyond a placeholder; OpenHands Cloud (Phase 4);
   multi-upstream (Phase 7).
-- **Inputs:** Phase 1 passed (G1–G3, D-09); chosen language/runtime + MCP SDK.
+- **Inputs:** Phase 1 passed (G1–G3, D-09). Chosen stack (D-09):
+  **TypeScript/Node.js + `@modelcontextprotocol/sdk`** (server + client,
+  Streamable HTTP); SQLite credential store; Docker deployment. Phase 2 uses a
+  **mock upstream** (no real Notion OAuth yet — that is Phase 3).
 - **Activities:** Implement the two MCP legs and the forwarding core against a
   mock upstream; write a smoke test.
 - **Deliverables:** Runnable connector + mock upstream + smoke test.

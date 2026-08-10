@@ -108,21 +108,75 @@
 - **Open item:** Confirm Notion's tools work without relying on SSE-delivered
   notifications *(verify via G1/G2, then G4)*.
 
-## D-09 — (Deferred) Implementation language/runtime and deployment target
+## D-09 — Implementation language/runtime and deployment target
 
-- **Status:** Deferred — **must be decided during Phase 1 (M1)**, as it gates
-  Phase 2 and depends on G1/G2 evidence.
-- **Context:** Affects credential store, SSE, operator OAuth callback UX,
-  hosting.
-- **Options being considered (proposals, not decisions):**
-  - Long-running service (container) — simplest SSE + callback hosting.
-  - Serverless/edge — cheap scaling, but OAuth callback + persistent encrypted
-    store + SSE are harder.
-- **Decision criteria:** native/first-class MCP SDK quality for that language;
-  SSE support; secrets-backend integration; operator-consent UX; deployability.
-- **Constraint:** Whatever is chosen must support the security requirements in
-  [AUTHENTICATION.md](AUTHENTICATION.md) §5 and the resilience in
-  [RISKS.md](RISKS.md) O-series.
+- **Status:** **DECIDED (2026-08-10).** Selected during Phase 1 (M1) after G1/G2/G3
+  passed. Unblocks Phase 2.
+- **Selected stack:**
+  - **Language/runtime:** **TypeScript on Node.js** (long-running single process).
+  - **MCP SDK:** official **`@modelcontextprotocol/sdk`** — `@modelcontextprotocol/server`
+    (Streamable HTTP server transport toward OpenHands) **and**
+    `@modelcontextprotocol/client` (Streamable HTTP client transport toward Notion),
+    plus runtime middleware (`@modelcontextprotocol/node` / express / fastify / hono
+    as needed).
+  - **OAuth client:** the SDK's **first-party MCP OAuth client helpers**
+    (`StreamableHTTPClientTransport` `authProvider`, which handles automatic token
+    refresh), supplemented by **`openid-client`** (or `oauth`) for PKCE (S256) +
+    Dynamic Client Registration (RFC 7591) + token refresh/rotation where the SDK
+    helper is insufficient.
+  - **Credential persistence:** **SQLite** (single file, ACID) on a persistent
+    mounted volume, **encrypted at rest** with a master key from a secrets manager
+    (prod) / environment injection (dev). SQLite transactions provide the
+    **atomic** `(access_token, refresh_token)` write G2 requires; in-process
+    **per-grant mutex** serializes refresh. (Master-key source is D-10.)
+  - **Deployment target:** **single long-running service in a Docker container** on
+    a VPS/cloud droplet, behind a **reverse proxy terminating TLS** (Caddy for
+    auto-TLS, or Nginx), with a **persistent volume** for the SQLite credential
+    store. **Restart via Docker restart policy** (or a process supervisor). Secrets
+    injected via environment (dev) / secrets manager (prod) — never in VCS.
+- **Rationale:**
+  1. The connector's single hardest, most uncertain requirement is acting as an
+     **OAuth 2.0 client** (Auth Code + PKCE + DCR + refresh-token rotation) toward
+     Notion (per G2). The **TypeScript SDK is the reference MCP SDK** and has
+     **first-party OAuth client helpers** (`authProvider` auto-refresh) purpose-built
+     for exactly this. Notion's own "Build an MCP client for Notion" guide is written
+     in TypeScript. This minimizes risk on the project's load-bearing requirement.
+  2. The SDK is a **monorepo covering both server and client** with Streamable HTTP
+     transports and runtime middleware (express/fastify/hono/node) — ideal for a relay
+     that is simultaneously an MCP server (to OpenHands) and an MCP client (to Notion).
+  3. Node's **single-threaded event-loop** model makes in-process **per-grant refresh
+     serialization** straightforward for a single-process gateway (the concurrency
+     invariant G2 requires: never refresh the same grant concurrently).
+  4. SQLite gives ACID atomic rotation and restart survival with minimal operational
+     surface, matching Notion's "use a database for storing tokens" guidance and the
+     AUTH §5 / RISKS O-series requirements.
+  5. The long-running container model is the simplest path for SSE + OAuth callback
+     hosting (the D-09 option ARCHITECTURE.md favored), and is reachable by OpenHands
+     Cloud over the Internet behind a TLS-terminating reverse proxy.
+- **Rejected alternatives:**
+  - **Go (`modelcontextprotocol/go-sdk`):** Excellent concurrency (`singleflight` for
+    serialized refresh) and the best deploy story (static binary, tiny image). **Rejected
+    because the official Go SDK marks client-side OAuth as "experimental support"** —
+    the connector's hardest, load-bearing requirement. Too high a risk for this project.
+    (Go SDK also reached stable Streamable HTTP latest of the three.)
+  - **Python (`modelcontextprotocol/python-sdk` v2):** Strong — proven end-to-end with
+    the MCP SDK in the G1 validation, and `authlib`/`requests-oauthlib` give mature
+    OAuth2 + PKCE + DCR (Notion's docs explicitly recommend this path). **Rejected as a
+    close second** in favor of TypeScript's first-party MCP OAuth helpers, richer
+    runtime middleware, and reference-SDK maturity. Python remains a documented fallback
+    if TypeScript SDK issues surface. (Python also needs single-worker deployment
+    discipline to preserve refresh serialization.)
+- **Constraint check:** Preserves the existing architecture — transparent MCP relay
+  (D-06/D-07 forwarding), upstream-credential isolation (D-02, AUTH §5), long-running
+  service for SSE + callback hosting, encrypted-at-rest credential store with rotation
+  support (RISKS S2/O5). Adds **no** multi-user support and **no** extra upstream
+  services. Generalization to multiple upstreams remains architectural (D-06/D-07) and
+  is not expanded by this decision.
+- **Implications for Phase 2:** Phase 2 implements the minimal connector skeleton in
+  TypeScript with `@modelcontextprotocol/sdk` (server + client Streamable HTTP), a mock
+  upstream, and the downstream bearer-`api_key` interface (D-05, confirmed by G1). The
+  real upstream OAuth/DCR/refresh and SQLite credential store land in **Phase 3** (per
+  G2/D-10/D-11). D-09 fixes only the stack; it does not implement it.
 
 ## D-10 — (Deferred) Credential-store backend and master-key source
 
@@ -154,7 +208,7 @@
 | D-06 | Advertise mediated intersection of capabilities | Resolved |
 | D-07 | Transparent JSON-RPC forwarding | Resolved |
 | D-08 | MVP may be stateless; SSE is additive | Proposed (confirm via G2, then G4) |
-| D-09 | Language/runtime + deployment target | Deferred — decide at M1 (Phase 1) |
+| D-09 | Language/runtime + deployment target | **DECIDED (2026-08-10)** — TypeScript/Node.js + `@modelcontextprotocol/sdk`; SQLite creds; Docker + reverse-proxy TLS | [DECISIONS.md §D-09](#d-09--implementation-languageruntime-and-deployment-target) |
 | D-10 | Credential-store backend + master key | Deferred — decide at M3 (Phase 3) |
 | D-11 | Operator OAuth consent UX | Deferred — decide at M3 (Phase 3) |
 
@@ -196,6 +250,13 @@ the gate-mapped list.)
    (2026-08-10).** Tools confirmed from official docs: read → `notion-search` +
    `notion-fetch`; create → `notion-create-pages`; update → `notion-update-page`;
    read comments → `notion-get-comments`. See [docs/evidence/G3.md](evidence/G3.md).
-4. **D-09 (M1):** Language/runtime and deployment target.
+4. **D-09 (M1):** Language/runtime and deployment target — **DECIDED
+   (2026-08-10):** TypeScript on Node.js with `@modelcontextprotocol/sdk`
+   (server + client, Streamable HTTP), first-party MCP OAuth client helpers +
+   `openid-client` for upstream PKCE/DCR/refresh, **SQLite** credential store
+   (encrypted at rest), deployed as a **Docker container** behind a
+   TLS-terminating reverse proxy with a persistent volume. Go rejected
+   (client OAuth experimental in the official Go SDK); Python a close-second
+   fallback. See [DECISIONS.md §D-09](DECISIONS.md#d-09--implementation-languageruntime-and-deployment-target).
 5. **D-10 (M3):** Credential-store backend and master-key source.
 6. **D-11 (M3):** Operator OAuth consent UX.

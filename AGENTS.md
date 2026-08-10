@@ -5,20 +5,23 @@ automatically each session.
 
 ## Project state
 
-- **Phase:** Phase 0 (architecture baseline) COMPLETE. Now in **Phase 1 —
-  External Assumption Validation**. All three Phase 1 gates passed:
-  **G1 = PASS** (OpenHands Cloud consumes a bearer `api_key` SHTTP MCP
-  endpoint, no OAuth, no custom headers; docs/evidence/G1.md);
-  **G2 = PASS** (Notion hosted MCP is OAuth 2.0 Auth Code + PKCE + DCR,
-  browser-consent, OAuth-only; access token ~8h/use `expires_in`; refresh
-  token rotates each refresh, 180-day absolute non-sliding cap or 30-day
-  inactivity; `invalid_grant` terminal; docs/evidence/G2.md);
-  **G3 = SUFFICIENT** (Notion hosted MCP exposes `notion-search`+`notion-fetch`
-  for read, `notion-create-pages`/`notion-update-page` for create/update, and
-  `notion-get-comments` for reading comments; docs/evidence/G3.md). The only
-  remaining Phase 1 requirement is **D-09 (language/runtime + deploy target)**,
-  which is undecided. **No implementation exists** and none may begin until
-  D-09 is decided (see docs/ROADMAP.md).
+- **Phase:** Phase 0 (architecture baseline) COMPLETE. **Phase 1 COMPLETE.**
+  All three Phase 1 gates passed: **G1 = PASS** (OpenHands Cloud consumes a
+  bearer `api_key` SHTTP MCP endpoint, no OAuth, no custom headers;
+  docs/evidence/G1.md); **G2 = PASS** (Notion hosted MCP is OAuth 2.0 Auth Code
+  + PKCE + DCR, browser-consent, OAuth-only; access token ~8h/use `expires_in`;
+  refresh token rotates each refresh, 180-day absolute non-sliding cap or 30-day
+  inactivity; `invalid_grant` terminal; docs/evidence/G2.md); **G3 = SUFFICIENT**
+  (Notion hosted MCP exposes `notion-search`+`notion-fetch` for read,
+  `notion-create-pages`/`notion-update-page` for create/update, and
+  `notion-get-comments` for reading comments; docs/evidence/G3.md). **D-09 =
+  DECIDED (2026-08-10):** TypeScript/Node.js + `@modelcontextprotocol/sdk`
+  (server + client Streamable HTTP), first-party MCP OAuth client helpers +
+  `openid-client` for upstream PKCE/DCR/refresh, **SQLite** credential store
+  (encrypted at rest), deployed as a **Docker container** behind a
+  TLS-terminating reverse proxy with a persistent volume. Phase 1 exit gate
+  satisfied; **Phase 2 is unblocked.** **No implementation exists yet** -- Phase
+  2 has not started (per current instructions).
 - **Roadmap is a strict gated contract:** a later phase MUST NOT begin until the
   previous phase's exit gate is satisfied and documented. "Code exists" is not
   completion.
@@ -76,8 +79,10 @@ automatically each session.
 
 - G1/G2/G3 (Phase 1, M1) — validate OpenHands Cloud `api_key` consumption,
   Notion OAuth token lifecycle, Notion tool surface. **G1 = PASS,
-  G2 = PASS, G3 = SUFFICIENT (2026-08-10)**; only D-09 remains.
-- D-09 language/runtime + deploy target — at M1 (Phase 1).
+  G2 = PASS, G3 = SUFFICIENT (2026-08-10)**; all done.
+- D-09 language/runtime + deploy target — **DECIDED (2026-08-10)**:
+  TypeScript/Node.js + `@modelcontextprotocol/sdk`; SQLite creds; Docker +
+  reverse-proxy TLS. Phase 1 COMPLETE; Phase 2 unblocked.
 - D-10 credential-store backend + master key — at M3 (Phase 3).
 - D-11 operator OAuth consent UX — at M3 (Phase 3).
 
@@ -176,6 +181,42 @@ payloads transparently (no content-shape transformation, D-07); advertise only
 what the upstream exposes at runtime (discovery-driven, not hardcoded — tool
 surface is not static). Live end-to-end exercise through the connector is a
 **G7 (Phase 5)** target.
+
+## D-09 stack decision (Phase 1, M1)
+
+**DECIDED (2026-08-10).** Phase 2 implements this stack. Full rationale in
+docs/DECISIONS.md §D-09.
+
+- **Language/runtime:** TypeScript on Node.js (long-running single process).
+- **MCP SDK:** official `@modelcontextprotocol/sdk` — `@modelcontextprotocol/server`
+  (Streamable HTTP server, toward OpenHands) + `@modelcontextprotocol/client`
+  (Streamable HTTP client, toward Notion); runtime middleware
+  (`@modelcontextprotocol/node` / express / fastify / hono) as needed.
+- **OAuth client:** SDK first-party MCP OAuth client helpers
+  (`StreamableHTTPClientTransport` `authProvider`, auto-refresh) + `openid-client`
+  (or `oauth`) for PKCE (S256) + Dynamic Client Registration (RFC 7591) +
+  refresh/rotation where the helper is insufficient.
+- **Credential persistence:** SQLite (single file, ACID) on a persistent mounted
+  volume, encrypted at rest (master key from secrets manager / env; master-key
+  source = D-10). SQLite transactions = atomic `(access_token, refresh_token)`
+  rotation (G2 requirement). In-process per-grant mutex serializes refresh
+  (G2 invariant: never refresh the same grant concurrently). Node's
+  single-threaded event loop makes single-process serialization straightforward.
+- **Deployment:** single long-running service in a Docker container on a
+  VPS/cloud droplet, behind a reverse proxy terminating TLS (Caddy auto-TLS or
+  Nginx), persistent volume for the SQLite store, restart via Docker restart
+  policy. Secrets via env (dev) / secrets manager (prod), never in VCS.
+- **Rejected:** Go (official Go SDK marks client-side OAuth "experimental" —
+  the project's hardest requirement; excellent concurrency/deploy but wrong risk
+  profile). Python (strong, proven in G1 via authlib; close-second fallback if
+  TypeScript SDK issues surface; needs single-worker discipline for refresh
+  serialization).
+
+**Phase 2 scope (not yet started):** minimal connector skeleton in TypeScript
+with `@modelcontextprotocol/sdk` (server + client Streamable HTTP) + a **mock
+upstream** + downstream bearer-`api_key` interface (D-05, confirmed by G1).
+Real Notion OAuth/DCR/refresh + SQLite credential store land in **Phase 3** (G2,
+D-10, D-11).
 
 ## Research discipline
 

@@ -73,8 +73,8 @@ All ten steps must pass. If any critical step fails, the MVP is NOT complete.
 - **Acceptance criteria:**
   - AC-M1-1 (G1): Documented evidence that OpenHands Cloud can consume a
     bearer-`api_key` remote MCP endpoint with no custom headers and no
-    interactive OAuth. **PASS** required. *(currently BLOCKED — VALIDATION
-    REQUIRED)*
+    interactive OAuth. **PASS** required. ***PASS (2026-08-10)*** — see
+    [evidence/G1.md](evidence/G1.md)
   - AC-M1-2 (G2): Documented evidence of Notion access-token TTL, refresh-token
     presence/lifetime, and revocation/`invalid_grant` behavior. **PASS**
     required. *(BLOCKED — VALIDATION REQUIRED)*
@@ -86,7 +86,8 @@ All ten steps must pass. If any critical step fails, the MVP is NOT complete.
   decided.
 - **Failure actions:** G1 FAIL → reassess D-05; G2 unestablished → reassess
   D-10/D-11; G3 INSUFFICIENT → reassess use case (ARCHITECTURE §4-C).
-- **Status:** **BLOCKED — VALIDATION REQUIRED** (G1, G2, G3 not yet validated).
+- **Status:** **IN PROGRESS** — G1=PASS (2026-08-10); G2 and G3 not yet
+  validated; D-09 undecided.
 
 ## M2 — Minimal connector forwards MCP (Phase 2)
 
@@ -230,7 +231,8 @@ All ten steps must pass. If any critical step fails, the MVP is NOT complete.
 ## Most important unresolved questions (must answer before the indicated gate)
 
 1. **G1 (M1):** Can OpenHands Cloud consume a bearer `api_key` remote MCP
-   endpoint with no custom headers and no interactive OAuth? — BLOCKED.
+   endpoint with no custom headers and no interactive OAuth? — **PASS
+   (2026-08-10).** See [evidence/G1.md](evidence/G1.md).
 2. **G2 (M1):** Notion refresh-token lifetime/revocation semantics? — BLOCKED.
 3. **G3 (M1):** Does Notion's hosted MCP tool surface cover read + update/create
    + comment read for the documentation workflow? — BLOCKED.

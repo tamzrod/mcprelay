@@ -99,12 +99,15 @@ All ten steps must pass. If any critical step fails, the MVP is NOT complete.
   upstream, no real auth.
 - **Acceptance criteria:**
   - AC-M2-1: An MCP client `initialize`s, lists tools, and calls one through
-    the connector, receiving the mock upstream's result (transparent forwarding).
-  - AC-M2-2: `Mcp-Session-Id` issued/correlated on both legs.
-  - AC-M2-3: No upstream-specific business logic in the connector (review-verified).
+    the connector, receiving the mock upstream's result (transparent forwarding). — **PASS** (integration test 2: result `[mock-upstream:g1_test] hello-relay`).
+  - AC-M2-2: `Mcp-Session-Id` issued/correlated on both legs. — **N/A-PHASE**
+    (prototype is stateless per D-08; session correlation deferred to the
+    stateful/SSE phase — see [evidence/G4.md](evidence/G4.md) "Known limitations").
+  - AC-M2-3: No upstream-specific business logic in the connector (review-verified). — **PASS** (`relay.ts` forwards `tools` and `name`+`arguments` generically).
 - **Exit gate (G4):** Minimal connector forwards MCP capabilities and tool
   calls against a mock upstream.
-- **Status:** Not started (blocked on M1).
+- **Status:** **COMPLETE (2026-08-10).** G4 = PASS. Evidence:
+  [evidence/G4.md](evidence/G4.md).
 
 ## M3 — Authentication and credential boundary holds (Phase 3)
 

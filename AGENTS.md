@@ -234,3 +234,23 @@ D-10, D-11).
   choose language/runtime per D-09 and add build/test instructions here.
 - Separation of responsibilities: GitHub=source of truth, OpenHands=agent,
   Notion=docs/stakeholders, Connector=connectivity only.
+
+### Build / test (Phase 2 implementation, per D-09)
+
+- **Runtime:** TypeScript on Node.js (`>=20.9`); repo tested with Node 22.
+- **Build:** `npm run build` (tsc, `strict: true`, output in `dist/`).
+- **Run mock upstream:** `npm run mock-upstream` (default `127.0.0.1:8788/mcp`,
+  tool `g1_test`).
+- **Run connector:** `npm run connector`
+  (`MCPRELAY_UPSTREAM_URL`, `MCPRELAY_PORT`, `MCPRELAY_HOST` env; defaults
+  `http://127.0.0.1:8788/mcp`, `8789`, `127.0.0.1`).
+- **Tests:** `npm test` — `node --test dist/test/integration.test.js` (3 cases:
+  initialize+list, call-through, no-extra-tools). Run `npm run build` first.
+- **Smoke:** `npm run smoke` — direct (client→mock) and relay (client→connector→mock).
+- **MCP SDK:** official `@modelcontextprotocol/sdk` 1.30.0 (ESM). Server side:
+  `Server` + `StreamableHTTPServerTransport`. Client side: `Client` +
+  `StreamableHTTPClientTransport`. State only in the relay/upstream client;
+  the downstream HTTP server creates a fresh `McpServer` per request (stateless,
+  D-08).
+- **Phase boundaries:** `src/{downstream,upstream,relay,test}` + `connector.ts`.
+  Keep the relay generic (no upstream business logic).

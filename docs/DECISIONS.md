@@ -196,6 +196,42 @@
 - **Decision driver:** deployment target (D-09) and how headless the connector
   environment is; G2 token-lifecycle findings.
 
+## D-12 — MCP SDK package/version: combined `@modelcontextprotocol/sdk` (Phase 2)
+
+- **Status:** **DECIDED (2026-08-10)** — Phase 2 (M2/G4).
+- **Context:** D-09 named the official TypeScript SDK but did not fix the
+  package split or version. During Phase 2 two candidates were evaluated:
+  - **Combined `@modelcontextprotocol/sdk` v1.30.0** (ESM; exports `./client`,
+    `./server`, `./server/mcp`, `./server/streamableHttp`, `./client/streamableHttp`,
+    `./types`, `./validation`, `./experimental`).
+  - **Split packages v2.0.0** (`@modelcontextprotocol/server` +
+    `@modelcontextprotocol/client`), a newer major.
+- **Decision:** Use the **combined `@modelcontextprotocol/sdk` v1.30.0** for
+  Phase 2.
+- **API surface used:** Server side `Server` (`@/server/index.js`) +
+  `StreamableHTTPServerTransport({ sessionIdGenerator: undefined })`
+  (`@/server/streamableHttp.js`), stateless per-request fresh-server pattern from
+  the SDK's `simpleStatelessStreamableHttp` example. Client side `Client`
+  (`@/client/index.js`) + `StreamableHTTPClientTransport(new URL(url))`
+  (`@/client/streamableHttp.js`), with `client.listTools()` / `client.callTool()`.
+- **Rationale:**
+  1. The combined package is the **well-documented stable line** with the
+     reference server/client Streamable HTTP examples the SDK ships — lowest
+     risk for the minimal relay.
+  2. The split v2.0.0 majors are newer; adopting a fresh major during a minimal
+     prototype adds migration/compat risk with no Phase-2 benefit (Phase 2 uses
+     no auth helpers, where the split packages' main new value lives).
+  3. Single dependency for both server and client legs matches a relay that is
+     simultaneously an MCP server (downstream) and an MCP client (upstream).
+- **Revisit:** At Phase 3 (OAuth/DCR/refresh), re-evaluate v2.0.0 split packages
+  if the newer `@modelcontextprotocol/client` OAuth helpers materially reduce
+  risk for Notion OAuth (D-09 already leans on SDK OAuth helpers). If the
+  upgrade is taken, it is a dedicated dependency-upgrade step before auth code,
+  not mixed into a feature change.
+- **Constraint check:** No change to architecture (D-01..D-08). Stateless path
+  (D-08) confirmed working; no auth, no credential store. zod is added as an
+  explicit dependency (SDK peer-dep) only for the mock upstream's tool schema.
+
 ## Summary of decision status
 
 | ID | Decision | Status |
@@ -207,10 +243,11 @@
 | D-05 | Downstream MVP auth = connector API key (bearer) | Resolved (confirmed by G1) |
 | D-06 | Advertise mediated intersection of capabilities | Resolved |
 | D-07 | Transparent JSON-RPC forwarding | Resolved |
-| D-08 | MVP may be stateless; SSE is additive | Proposed (confirm via G2, then G4) |
-| D-09 | Language/runtime + deployment target | **DECIDED (2026-08-10)** — TypeScript/Node.js + `@modelcontextprotocol/sdk`; SQLite creds; Docker + reverse-proxy TLS | [DECISIONS.md §D-09](#d-09--implementation-languageruntime-and-deployment-target) |
+| D-08 | MVP may be stateless; SSE is additive | **Confirmed (2026-08-10, G4)** — stateless Streamable HTTP works for the minimal relay |
+| D-09 | Language/runtime + deployment target | **DECIDED (2026-08-10)** — TypeScript/Node.js + `@modelcontextprotocol/sdk`; SQLite creds; Docker + reverse-proxy TLS |
 | D-10 | Credential-store backend + master key | Deferred — decide at M3 (Phase 3) |
 | D-11 | Operator OAuth consent UX | Deferred — decide at M3 (Phase 3) |
+| D-12 | MCP SDK package/version (Phase 2) | **DECIDED (2026-08-10)** — combined `@modelcontextprotocol/sdk` v1.30.0; revisit at Phase 3 |
 
 ## Gate-status record
 
@@ -223,7 +260,7 @@ downstream phases it guards must not begin (see [ROADMAP.md](ROADMAP.md)).
 | G1 — OpenHands Cloud compatibility | Phase 1 (M1) | Phase 2 onward | PASS (2026-08-10) | [docs/evidence/G1.md](evidence/G1.md) |
 | G2 — Notion OAuth behavior | Phase 1 (M1) | Phase 3 onward | PASS (2026-08-10) | [docs/evidence/G2.md](evidence/G2.md) |
 | G3 — Notion MCP tool surface sufficient | Phase 1 (M1) | Phase 5 onward | SUFFICIENT (2026-08-10) | [docs/evidence/G3.md](evidence/G3.md) |
-| G4 — Minimal connector forwards MCP | Phase 2 (M2) | Phase 3 onward | Not started | — |
+| G4 — Minimal connector forwards MCP | Phase 2 (M2) | Phase 3 onward | PASS (2026-08-10) | [docs/evidence/G4.md](evidence/G4.md) |
 | G5 — Auth boundary holds | Phase 3 (M3) | Phase 4 onward | Not started | — |
 | G6 — OpenHands connects via connector, isolation holds | Phase 4 (M4) | Phase 5 onward | Not started | — |
 | G7 — Complete technical path validated | Phase 5 (M5) | Phase 6 onward | Not started | — |

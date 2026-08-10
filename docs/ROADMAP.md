@@ -36,7 +36,7 @@ pass *before* any connector code is written (Phase 2).
 | G1 — OpenHands Cloud compatibility confirmed | Phase 1 | Phase 2 onward | **PASS (2026-08-10)** — see [evidence/G1.md](evidence/G1.md) |
 | G2 — Notion OAuth behavior confirmed | Phase 1 | Phase 3 onward | **PASS (2026-08-10)** — see [evidence/G2.md](evidence/G2.md) |
 | G3 — Notion MCP tool surface confirmed sufficient | Phase 1 | Phase 5 onward | **SUFFICIENT (2026-08-10)** — see [evidence/G3.md](evidence/G3.md) |
-| G4 — Minimal connector forwards MCP (mock upstream) | Phase 2 | Phase 3 onward | Not started |
+| G4 — Minimal connector forwards MCP (mock upstream) | Phase 2 | Phase 3 onward | **PASS (2026-08-10)** — see [evidence/G4.md](evidence/G4.md) |
 | G5 — Auth boundary holds (OAuth + secure store + refresh + restart) | Phase 3 | Phase 4 onward | Not started |
 | G6 — OpenHands Cloud connects via connector, no upstream creds in sandbox | Phase 4 | Phase 5 onward | Not started |
 | G7 — Complete technical path OpenHands→Connector→Notion validated | Phase 5 | Phase 6 onward | Not started |
@@ -77,8 +77,14 @@ pass *before* any connector code is written (Phase 2).
   deferred to Phase 1/2/3).
 
 > **PHASE 0 STATUS: COMPLETE.** This document set is the Phase 0 deliverable.
-> The project is now in Phase 1 (External Assumption Validation). G1 = PASS;
-> G2 and G3 remain to be validated.
+>
+> **PHASE 1 STATUS: COMPLETE** (G1 = PASS, G2 = PASS, G3 = SUFFICIENT).
+>
+> **PHASE 2 STATUS: COMPLETE** (G4 = PASS, 2026-08-10). Minimal connector
+> forwards MCP against a mock upstream over Streamable HTTP (stateless) with no
+> auth, no Notion, no credential store. See [evidence/G4.md](evidence/G4.md).
+> The project is now at the Phase 3 entry point; Phase 3 has **not** been
+> started.
 
 ---
 
@@ -173,6 +179,12 @@ pass *before* any connector code is written (Phase 2).
   proceed to authentication on a broken proxy core.
 - **Decision required:** D-08 confirmation (stateless vs SSE for MVP) if not
   already settled by G1/G2 evidence.
+- **Status:** **COMPLETE (2026-08-10).** G4 = PASS. Implemented in TypeScript/
+  Node.js + `@modelcontextprotocol/sdk` (server + client, Streamable HTTP,
+  stateless). Layout: `src/{downstream,upstream,relay,test,connector.ts}`.
+  Integration tests 3/3 pass; standalone e2e + restart verified. No OAuth,
+  no Notion, no credential store, no multi-user. Evidence:
+  [evidence/G4.md](evidence/G4.md). Phase 3 **not** started.
 
 ---
 

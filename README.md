@@ -36,17 +36,31 @@ support other authenticated remote MCP servers later.
 
 ## Status
 
-Phase 0 (architecture baseline) is **complete**. The project is now at
-**Phase 1 — External Assumption Validation**, which is **BLOCKED — VALIDATION
-REQUIRED** on three gates (G1: OpenHands Cloud compatibility, G2: Notion OAuth
-behavior, G3: Notion MCP tool surface). **No implementation exists yet**, and
-none may begin until those gates pass. The development sequence is a strict
+Phase 0 (architecture baseline) is **complete**. Phase 1 (External Assumption
+Validation) is **complete**: G1, G2, G3 passed/sufficient. Phase 2 (Minimal
+Technical Prototype) is **complete**: G4 = PASS (2026-08-10) — a minimal MCP
+Connector forwards MCP capabilities and tool calls against a mock upstream over
+Streamable HTTP (stateless), with no auth, no Notion, no credential store.
+
+The project is now at the **Phase 3 entry point** (Authentication and Credential
+Boundary). Phase 3 has **not** been started. The development sequence is a strict
 gated contract: no phase begins until the previous phase's exit gate is
 satisfied and documented.
 
+### Quickstart (Phase 2 prototype)
+
+```bash
+npm install
+npm run build
+npm run mock-upstream   # terminal 1: mock upstream on 127.0.0.1:8788/mcp
+npm run connector       # terminal 2: connector    on 127.0.0.1:8789/mcp
+npm test                # integration tests (3/3)
+npm run smoke           # direct + relay smoke runs
+```
+
 See [`docs/ROADMAP.md`](docs/ROADMAP.md) for the gated phase sequence and
 [`docs/MILESTONES.md`](docs/MILESTONES.md) for the acceptance criteria behind
-each gate.
+each gate. Phase 2 evidence: [`docs/evidence/G4.md`](docs/evidence/G4.md).
 
 ## Documentation
 

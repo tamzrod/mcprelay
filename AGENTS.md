@@ -7,8 +7,8 @@ automatically each session.
 
 - **Phase:** Phase 0 (architecture baseline) COMPLETE. **Phase 1 COMPLETE.**
   **Phase 2 COMPLETE (G4 = PASS).** **Phase 3 COMPLETE (G5 = PASS,
-  2026-08-10).** **Phase 4 IN PROGRESS — BLOCKED at the Notion human-consent
-  gate (G6 PARTIAL, 2026-08-10).** The auth boundary holds: downstream bearer
+  2026-08-10).**   **Phase 4 IN PROGRESS — BLOCKED: OAuth callback failed (stale authorize
+  URL); retry required (G6 BLOCKED, 2026-08-10).** The auth boundary holds: downstream bearer
   API-key gate; connector-hosted operator OAuth consent (`/oauth/authorize` +
   `/oauth/callback`); Notion OAuth lifecycle (discovery → DCR → PKCE → exchange
   → refresh → rotation → `invalid_grant` → restart survival) via the SDK's
@@ -23,14 +23,17 @@ automatically each session.
   (401 on missing/invalid), MCP `initialize` over TLS, OpenHands Cloud
   `api_key` configuration + connection, and the **real** Notion OAuth automated
   chain (RFC 9728 → RFC 8414 → RFC 7591 DCR → PKCE S256 → 302 authorize
-  redirect to `app.notion.com/login`). **10 of 16 G6 criteria PASS; 5 are
-  BLOCKED solely on a human Notion account holder completing browser consent
-  (G2-confirmed OAuth-only, no headless path); 1 is PARTIAL (restart mechanism
-  verified, grant-survival pending consent).** This is an OAuth
-  operational/credential dependency (RISKS O7), NOT an architectural, transport,
-  or security failure — no workaround was applied. Work STOPPED per Phase 4
-  instructions; Phase 5 not begun. The deployed connector remains live and ready
-  to complete consent. Evidence: docs/evidence/G6.md.
+  redirect). A human Notion consent was attempted but the callback **failed**
+  with `state not found or already consumed` — the operator used a stale
+  authorize URL whose single-use state was not in the current store; **no grant
+  was persisted** (`notion_grant` empty). The connector's state mechanism was
+  independently verified **correct** (correct-state callback passes the state
+  check and proceeds to token exchange) → **operational failure, not a code
+  defect**; no workaround applied. **10 of 16 G6 criteria PASS; 5 are BLOCKED
+  on a successful consent (retry with a fresh `/oauth/authorize` URL); 1 is
+  PARTIAL (restart mechanism verified, grant-survival pending consent).** Work
+  STOPPED per Phase 4 instructions; Phase 5 not begun. The deployed connector
+  remains live and ready to complete consent. Evidence: docs/evidence/G6.md.
   All three Phase 1 gates passed: **G1 = PASS** (OpenHands Cloud consumes a
   bearer `api_key` SHTTP MCP endpoint, no OAuth, no custom headers;
   docs/evidence/G1.md); **G2 = PASS** (Notion hosted MCP is OAuth 2.0 Auth Code

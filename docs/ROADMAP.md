@@ -38,7 +38,7 @@ pass *before* any connector code is written (Phase 2).
 | G3 — Notion MCP tool surface confirmed sufficient | Phase 1 | Phase 5 onward | **SUFFICIENT (2026-08-10)** — see [evidence/G3.md](evidence/G3.md) |
 | G4 — Minimal connector forwards MCP (mock upstream) | Phase 2 | Phase 3 onward | **PASS (2026-08-10)** — see [evidence/G4.md](evidence/G4.md) |
 | G5 — Auth boundary holds (OAuth + secure store + refresh + restart) | Phase 3 | Phase 4 onward | **PASS (2026-08-10)** — see [evidence/G5.md](evidence/G5.md) |
-| G6 — OpenHands Cloud connects via connector, no upstream creds in sandbox | Phase 4 | Phase 5 onward | **PARTIAL — BLOCKED at Notion human-consent gate (2026-08-10)** — see [evidence/G6.md](evidence/G6.md) |
+| G6 — OpenHands Cloud connects via connector, no upstream creds in sandbox | Phase 4 | Phase 5 onward | **BLOCKED — OAuth callback failed (state not found; stale authorize URL); 10/16 criteria PASS, retry required (2026-08-10)** — see [evidence/G6.md](evidence/G6.md) |
 | G7 — Complete technical path OpenHands→Connector→Notion validated | Phase 5 | Phase 6 onward | Not started |
 | G8 — MVP complete: full 10-step end-to-end demonstration, reproducible | Phase 6 | Phase 7 onward | Not started |
 | G9 — Generalization driven by MVP evidence; second upstream works | Phase 7 | Phase 8 onward | Not started |
@@ -292,19 +292,23 @@ pass *before* any connector code is written (Phase 2).
   G1, STOP and reassess D-05/downstream interface; do not generalize a broken
   integration.
 - **Decision required:** None new.
-- **Status:** **IN PROGRESS — BLOCKED at the Notion human-consent gate
-  (2026-08-10).** The production Docker image was built and the connector
-  deployed behind the TLS work-host ingress with a persistent encrypted SQLite
-  volume; the downstream bearer-`api_key` boundary (401 on missing/invalid),
-  MCP `initialize` over TLS, the OpenHands Cloud `api_key` configuration, and
-  the real Notion OAuth automated chain (RFC 9728 → RFC 8414 → RFC 7591 DCR →
-  PKCE S256 → 302 authorize redirect to `app.notion.com/login`) were all
-  validated. **10 of 16 G6 criteria PASS; 5 are BLOCKED solely on a human
-  Notion account holder completing browser consent; 1 is PARTIAL.** The blocker
-  is an OAuth operational/credential dependency (the G2-confirmed
-  browser-consent requirement), not an architectural, transport, or security
-  failure — no workaround was applied. Work STOPPED per Phase 4 instructions;
-  Phase 5 not begun. Evidence: [evidence/G6.md](evidence/G6.md).
+- **Status:** **IN PROGRESS — BLOCKED: OAuth callback failed (stale authorize
+  URL); retry required (2026-08-10).** The production Docker image was built and
+  the connector deployed behind the TLS work-host ingress with a persistent
+  encrypted SQLite volume; the downstream bearer-`api_key` boundary (401 on
+  missing/invalid), MCP `initialize` over TLS, the OpenHands Cloud `api_key`
+  configuration, and the real Notion OAuth automated chain (RFC 9728 → RFC 8414
+  → RFC 7591 DCR → PKCE S256 → 302 authorize redirect) were all validated. A
+  human Notion consent was attempted: the callback reached the connector but
+  **failed** with `state not found or already consumed` — the operator used a
+  stale authorize URL whose single-use state was not in the current store. The
+  `notion_grant` table is empty; **no grant persisted.** The connector's state
+  mechanism was independently verified **correct** (a correct-state callback
+  passes the state check and proceeds to token exchange), so this is an
+  **operational failure, not a code defect** — no workaround was applied. **10
+  of 16 G6 criteria PASS; 5 BLOCKED on a successful consent (retry with a fresh
+  authorize URL); 1 PARTIAL.** Work STOPPED per Phase 4 instructions; Phase 5
+  not begun. Evidence: [evidence/G6.md](evidence/G6.md).
 
 ---
 

@@ -478,7 +478,7 @@ downstream phases it guards must not begin (see [ROADMAP.md](ROADMAP.md)).
 | G3 — Notion MCP tool surface sufficient | Phase 1 (M1) | Phase 5 onward | SUFFICIENT (2026-08-10) | [docs/evidence/G3.md](evidence/G3.md) |
 | G4 — Minimal connector forwards MCP | Phase 2 (M2) | Phase 3 onward | PASS (2026-08-10) | [docs/evidence/G4.md](evidence/G4.md) |
 | G5 — Auth boundary holds | Phase 3 (M3) | Phase 4 onward | PASS (2026-08-10) | [docs/evidence/G5.md](evidence/G5.md) |
-| G6 — OpenHands connects via connector, isolation holds | Phase 4 (M4) | Phase 5 onward | PARTIAL — BLOCKED at Notion human-consent gate (2026-08-10); 10/16 criteria PASS, 5 blocked on operator consent, 1 partial | [docs/evidence/G6.md](evidence/G6.md) |
+| G6 — OpenHands connects via connector, isolation holds | Phase 4 (M4) | Phase 5 onward | BLOCKED — OAuth callback failed (stale authorize URL; 2026-08-10); 10/16 criteria PASS, 5 blocked on consent retry, 1 partial; state mechanism verified correct (not a code defect) | [docs/evidence/G6.md](evidence/G6.md) |
 | G7 — Complete technical path validated | Phase 5 (M5) | Phase 6 onward | Not started | — |
 | G8 — MVP complete (10-step, reproducible) | Phase 6 (M6) | Phase 7 onward | Not started | — |
 | G9 — Generalization evidenced | Phase 7 (M7) | Phase 8 onward | Not started | — |

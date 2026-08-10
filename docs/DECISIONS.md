@@ -97,16 +97,41 @@
 
 ## D-08 — MVP may run stateless (no SSE) where MCP allows; SSE streaming is additive
 
-- **Status:** Proposed — to be confirmed by G1/G2 evidence (Phase 1) or settled
-  at the Phase 2 exit gate (G4).
+- **Status:** **Confirmed (2026-08-10, G4; re-confirmed 2026-08-10, Phase 3
+  stateful/stateless check).** Stateless Streamable HTTP works for both legs.
 - **Context:** SSE adds session/stickiness complexity.
 - **Decision:** For the MVP, support request/response `tools/call` without
   requiring SSE streaming; support `GET` SSE (and resumption) as a Phase 8
   enhancement.
 - **Rationale:** The initial use case (list/call Notion tools) does not require
   server-initiated streaming. Reduces state complexity for the MVP.
-- **Open item:** Confirm Notion's tools work without relying on SSE-delivered
-  notifications *(verify via G1/G2, then G4)*.
+- **Phase 3 re-confirmation (stateful/stateless check):** Before committing the
+  real Notion upstream design, the question "does Notion's hosted MCP require
+  stateful Streamable HTTP / SSE notifications / long-lived upstream sessions?"
+  was checked against official Notion docs ([^notion-build-client]) and the MCP
+  Streamable HTTP spec:
+  - Notion's hosted MCP supports Streamable HTTP (recommended) **and** an SSE
+    fallback; both carry the same MCP protocol + OAuth. Notion's own TypeScript
+    client example connects with `StreamableHTTPClientTransport` +
+    `client.connect()` and performs request/response `tools/call`; it does not
+    require the client to maintain a session for tool calls.
+  - MCP Streamable HTTP sessions are **optional** (a stateless server sets
+    `sessionIdGenerator: undefined`); `GET` SSE for server-initiated messages is
+    **optional**. The documentation-workflow operations (`notion-search`,
+    `notion-fetch`, `notion-create-pages`, `notion-update-page`,
+    `notion-get-comments`) are all synchronous request/response `tools/call`.
+  - No evidence that Notion sends server-initiated notifications the connector
+    must consume, or requires a long-lived upstream session beyond the
+    request/response tool calls.
+  - **Conclusion:** stateless Streamable HTTP is **sufficient** for the Notion
+    upstream. No change to D-08; the downstream interface is not redesigned.
+- **Implementation note (Phase 3):** the upstream `StreamableHTTPClientTransport`
+  is used **without** the SDK's `authProvider` auto-path. The connector attaches
+  `Authorization: Bearer <token>` explicitly (refreshed token) and manages
+  refresh/serialization/`invalid_grant` itself (see D-12). This keeps the
+  error/serialization semantics under the connector's control rather than the
+  SDK's throw-`UnauthorizedError`-and-redirect semantic, which does not fit the
+  headless-forwarding model.
 
 ## D-09 — Implementation language/runtime and deployment target
 
@@ -119,11 +144,17 @@
     `@modelcontextprotocol/client` (Streamable HTTP client transport toward Notion),
     plus runtime middleware (`@modelcontextprotocol/node` / express / fastify / hono
     as needed).
-  - **OAuth client:** the SDK's **first-party MCP OAuth client helpers**
-    (`StreamableHTTPClientTransport` `authProvider`, which handles automatic token
-    refresh), supplemented by **`openid-client`** (or `oauth`) for PKCE (S256) +
-    Dynamic Client Registration (RFC 7591) + token refresh/rotation where the SDK
-    helper is insufficient.
+  - **OAuth client:** the SDK's **first-party MCP OAuth client helpers** in
+    `@modelcontextprotocol/sdk/client/auth.js` (`auth`, `registerClient`,
+    `startAuthorization`, `exchangeAuthorization`, `refreshAuthorization`,
+    `discoverOAuthServerInfo`) cover the full G2 OAuth requirement set (Auth Code
+    + PKCE S256 + DCR + refresh + rotation + `invalid_grant`). **Per D-12
+    (re-evaluated at Phase 3 entry), `openid-client` is NOT added** — the SDK's
+    helpers are sufficient, so no supplemental OAuth library is needed. The
+    transport's `authProvider` auto-path is **not** used for the upstream leg;
+    the connector attaches `Authorization: Bearer <token>` explicitly and
+    manages refresh/serialization/`invalid_grant` itself (D-08 implementation
+    note, D-12).
   - **Credential persistence:** **SQLite** (single file, ACID) on a persistent
     mounted volume, **encrypted at rest** with a master key from a secrets manager
     (prod) / environment injection (dev). SQLite transactions provide the
@@ -178,59 +209,211 @@
   real upstream OAuth/DCR/refresh and SQLite credential store land in **Phase 3** (per
   G2/D-10/D-11). D-09 fixes only the stack; it does not implement it.
 
-## D-10 — (Deferred) Credential-store backend and master-key source
+## D-10 — Credential-store backend and master-key source (Phase 3 entry)
 
-- **Status:** Deferred — **must be decided at Phase 3 entry (M3)**, after G2
-  evidence is available.
-- **Options (proposals):** KMS-managed key; secrets-manager (e.g. Vault/cloud
-  KMS); environment-injected key for dev.
-- **Constraint:** Never store secrets in VCS; encrypt at rest; support rotation
-  without downtime (RISKS S2, O5).
+- **Status:** **DECIDED (2026-08-10)** — Phase 3 entry (M3). Resolves the
+  deferred D-10 using G2 evidence (token-lifecycle requirements).
+- **Decision:**
+  - **Backend:** **SQLite** (single file, via `better-sqlite3` — synchronous,
+    ACID). Confirmed by D-09. Synchronous transactions make the G2 atomic
+    `(access_token, refresh_token)` rotation trivially correct and race-free.
+  - **Location / persistent volume:** a single file whose path is configurable
+    via `MCPRELAY_DB_PATH` (dev default `./data/connector.db`; in Docker, a
+    persistent mounted volume, e.g. `/data/connector.db`). The file must be on a
+    persistent volume so credentials survive restart.
+  - **Encryption-at-rest mechanism:** **field-level AES-256-GCM** (Node
+    `crypto`). Each secret value (`access_token`, `refresh_token`,
+    `client_secret`) is encrypted with the master key + a per-value random 12-byte
+    IV; the ciphertext + IV + 16-byte auth tag are stored together. Non-secret
+    metadata (`client_id`, `bot_id`, `owner`, `expires_at`, `created_at`,
+    `updated_at`, status) is stored in plaintext so it can be queried without
+    decryption. Field-level (not full-DB SQLCipher) is chosen for: simpler build
+    (no native SQLCipher binding / separate full-DB key), ability to query
+    metadata, and key-scoped-to-secrets-only.
+  - **Master-key source:** **environment-injected secret**
+    `MCPRELAY_MASTER_KEY` — a 32-byte (256-bit) random value, base64-encoded
+    (generated once by the operator, e.g. `openssl rand -base64 32`). Dev: env.
+    Prod (single Docker service on VPS): env injected at container start from the
+    operator's secrets mechanism (Docker secret / VPS secrets manager / env not
+    in VCS). This is the **simplest** approach that satisfies "encrypt at rest,
+    key survives restart, never in VCS" for the single-Docker-service MVP.
+  - **Master key survives restart:** the key lives in the environment (injected
+    at each container start); the encrypted SQLite file lives on the persistent
+    volume. Both persist across restart. **The connector never writes the master
+    key to disk.**
+  - **Credential rotation without data loss:** field-level encryption makes
+    re-encryption straightforward. A rotation operation reads all rows, decrypts
+    with the old key, re-encrypts with the new key, in a single transaction. This
+    is **documented as a procedure** for the MVP; full automated rotation tooling
+    is Phase 8 hardening (RISKS O5). The design does not preclude it.
+  - **Master key unavailable:** the connector **fails fast** at startup with a
+    clear error if `MCPRELAY_MASTER_KEY` is missing/empty/wrong-length. It must
+    **never** start in a degraded/unencrypted mode.
+  - **Backup/recovery:** the encrypted SQLite file **and** the master key are
+    **both** required to recover credentials. Back up the volume (the encrypted
+    file backs up safely). Back up the master key **separately** (secrets
+    manager). Losing either is, by design, data loss — that is the security
+    property (an attacker with the file alone gets ciphertext only).
+  - **Refresh serialization:** an in-process per-grant mutex serializes refresh
+    (G2 invariant: never refresh the same grant concurrently). Node's
+    single-threaded event loop makes single-process serialization
+    straightforward (D-09).
+- **Rejected alternatives:**
+  - **Full-DB SQLCipher:** requires a native binding + a separate full-DB key
+    model; heavier for the MVP and complicates metadata queries. Field-level
+    AES-256-GCM is sufficient and simpler.
+  - **KMS / Vault-managed master key:** adds an external dependency and
+    operational complexity unjustified for a single-Docker-service MVP. Defer to
+    Phase 8 hardening (RISKS O5). The env-injected key does not preclude a KMS
+    source later (the source of `MCPRELAY_MASTER_KEY` can be a KMS in prod).
+  - **Plaintext store:** rejected outright — violates RISKS S2 and the project's
+    core security invariants.
+- **Constraint check:** Never store secrets in VCS ✓; encrypt at rest ✓; atomic
+  rotation ✓ (SQLite transaction); serialized refresh ✓ (per-grant mutex);
+  rotation without data loss ✓ (re-encryption procedure documented); fail-fast
+  on missing key ✓ (RISKS S2, O5).
 
-## D-11 — (Deferred) Operator OAuth consent UX
+## D-11 — Operator OAuth consent UX (Phase 3 entry)
 
-- **Status:** Deferred — **must be decided at Phase 3 entry (M3)**, after G2
-  evidence and D-09.
-- **Options (proposals):** connector-hosted web `/authorize` + callback page;
-  out-of-band CLI that performs the flow and injects tokens.
-- **Decision driver:** deployment target (D-09) and how headless the connector
-  environment is; G2 token-lifecycle findings.
-
-## D-12 — MCP SDK package/version: combined `@modelcontextprotocol/sdk` (Phase 2)
-
-- **Status:** **DECIDED (2026-08-10)** — Phase 2 (M2/G4).
-- **Context:** D-09 named the official TypeScript SDK but did not fix the
-  package split or version. During Phase 2 two candidates were evaluated:
-  - **Combined `@modelcontextprotocol/sdk` v1.30.0** (ESM; exports `./client`,
-    `./server`, `./server/mcp`, `./server/streamableHttp`, `./client/streamableHttp`,
-    `./types`, `./validation`, `./experimental`).
-  - **Split packages v2.0.0** (`@modelcontextprotocol/server` +
-    `@modelcontextprotocol/client`), a newer major.
-- **Decision:** Use the **combined `@modelcontextprotocol/sdk` v1.30.0** for
-  Phase 2.
-- **API surface used:** Server side `Server` (`@/server/index.js`) +
-  `StreamableHTTPServerTransport({ sessionIdGenerator: undefined })`
-  (`@/server/streamableHttp.js`), stateless per-request fresh-server pattern from
-  the SDK's `simpleStatelessStreamableHttp` example. Client side `Client`
-  (`@/client/index.js`) + `StreamableHTTPClientTransport(new URL(url))`
-  (`@/client/streamableHttp.js`), with `client.listTools()` / `client.callTool()`.
+- **Status:** **DECIDED (2026-08-10)** — Phase 3 entry (M3). Resolves the
+  deferred D-11 using G2 evidence + D-09 deployment target.
+- **Decision:** **Connector-hosted browser flow.** The connector itself serves:
+  - `GET /oauth/authorize` — generates PKCE verifier/challenge (S256) + `state`,
+    persists them short-lived, and redirects the operator's browser to Notion's
+    authorization endpoint.
+  - `GET /oauth/callback` — Notion redirects here with `code` + `state`; the
+    connector validates `state` + PKCE, exchanges the code for tokens, and
+    **persists the DCR credentials + tokens encrypted at rest** (D-10).
+  - The operator authorizes by **visiting the connector's `/oauth/authorize` URL
+    in a browser** (one human action, once). Re-authorization (the expected
+    180-day/30-day periodic reconnect per G2) is the same action again — easy to
+    reach, satisfying the G2 "consent UX must be easy to reach" requirement.
 - **Rationale:**
-  1. The combined package is the **well-documented stable line** with the
-     reference server/client Streamable HTTP examples the SDK ships — lowest
-     risk for the minimal relay.
-  2. The split v2.0.0 majors are newer; adopting a fresh major during a minimal
-     prototype adds migration/compat risk with no Phase-2 benefit (Phase 2 uses
-     no auth helpers, where the split packages' main new value lives).
-  3. Single dependency for both server and client legs matches a relay that is
-     simultaneously an MCP server (downstream) and an MCP client (upstream).
-- **Revisit:** At Phase 3 (OAuth/DCR/refresh), re-evaluate v2.0.0 split packages
-  if the newer `@modelcontextprotocol/client` OAuth helpers materially reduce
-  risk for Notion OAuth (D-09 already leans on SDK OAuth helpers). If the
-  upgrade is taken, it is a dedicated dependency-upgrade step before auth code,
-  not mixed into a feature change.
-- **Constraint check:** No change to architecture (D-01..D-08). Stateless path
-  (D-08) confirmed working; no auth, no credential store. zod is added as an
-  explicit dependency (SDK peer-dep) only for the mock upstream's tool schema.
+  - The connector is a **long-running Docker service behind a TLS-terminating
+    reverse proxy** (D-09) — it has a stable, reachable URL, so it can host the
+    callback. Notion's OAuth is **browser-consent-based** (G2); the operator is a
+    human with a browser. Hosting the flow on the connector is the natural fit.
+  - Tokens **never leave the connector**: the callback is handled server-side;
+    the connector exchanges the code and stores the result. No token
+    copy-paste, no token transiting the operator's machine beyond the OAuth
+    exchange itself.
+  - The `state` parameter binds the callback to the initiated flow (CSRF
+    protection, RISKS S7); the `redirect_uri` is allowlisted to the connector's
+    own `/oauth/callback` path (open-redirect protection, RISKS S7).
+- **Rejected alternative — out-of-band CLI:** a local CLI that performs the flow
+  with a `localhost` callback then injects tokens into the connector store. More
+  moving parts (a separate CLI + a token-injection path), tokens transit the
+  operator's machine, and manual injection risks. Worse fit for a deployed
+  service. Rejected for the MVP.
+- **Constraint check:** browser-consent satisfied (G2) ✓; tokens stay
+  connector-side (D-02) ✓; re-auth reachable (G2 periodic reconnect) ✓; CSRF /
+  open-redirect mitigated (RISKS S7) ✓.
+
+## D-12 — MCP SDK package/version and OAuth implementation path (Phase 3 entry)
+
+- **Status:** **DECIDED (2026-08-10)** — Phase 3 entry (M3). Re-evaluates the
+  Phase-2 SDK decision against the actual G2 OAuth requirements before any auth
+  code is written.
+- **Decision:**
+  1. **Remain on the combined `@modelcontextprotocol/sdk` v1.30.0.** Do not move
+     to the split v2 packages.
+  2. **Use the SDK's native OAuth client helpers** in
+     `@modelcontextprotocol/sdk/client/auth.js` — `auth`, `registerClient`,
+     `startAuthorization`, `exchangeAuthorization`, `refreshAuthorization`,
+     `discoverOAuthServerInfo` — backed by an `OAuthClientProvider`
+     implementation that persists to the encrypted SQLite store (D-10).
+  3. **Do NOT add `openid-client` (or any supplemental OAuth library).** The SDK
+     helpers are sufficient (evidenced below). This also drops the D-09
+     "supplement with openid-client" proposal.
+  4. **Do NOT use the transport's `authProvider` auto-path for the upstream
+     leg.** The connector attaches `Authorization: Bearer <token>` explicitly
+     via `requestInit` (refreshed token) and manages refresh / serialization /
+     `invalid_grant` itself. (Rationale below.)
+- **Evidence (inspected in `node_modules/@modelcontextprotocol/sdk` v1.30.0):**
+  - `./client/auth.js` ships a **complete** first-party OAuth client:
+    - `discoverOAuthServerInfo()` — RFC 9728 (Protected Resource Metadata) →
+      RFC 8414 (Authorization Server Metadata) discovery (the G2 discovery
+      chain).
+    - `registerClient()` — RFC 7591 Dynamic Client Registration (G2 DCR).
+    - `startAuthorization()` — generates a PKCE **S256** challenge (via
+      `pkce-challenge` 5.0.1: SHA-256 + base64url) and sets
+      `code_challenge_method=S256`; constructs the authorization URL (G2 PKCE).
+    - `exchangeAuthorization()` — authorization code → tokens (G2 exchange).
+    - `refreshAuthorization()` — refresh-token grant; **preserves the original
+      `refresh_token` if a new one is not returned** (handles Notion's rotation:
+      a returned new token overrides; absence keeps the old) (G2 rotation).
+    - `auth(provider, …)` — orchestrates the full flow.
+    - `OAuthClientProvider` interface — pluggable persistence
+      (`tokens()`, `saveTokens()`, `clientInformation()`,
+      `saveClientInformation()`, `codeVerifier()`, `saveCodeVerifier()`,
+      `saveDiscoveryState()`, `invalidateCredentials()`) — backed by the
+      encrypted store (D-10) for restart survival.
+  - `./server/auth/errors.js` ships `InvalidGrantError`
+    (`errorCode === "invalid_grant"`) and the full OAuth error hierarchy — the
+    connector detects the terminal `invalid_grant` condition directly (G2).
+  - These cover **every** G2 requirement: Auth Code ✓, PKCE S256 ✓, DCR ✓,
+    access-token expiry (proactive refresh via `refreshAuthorization`) ✓,
+    rotating refresh tokens ✓, refresh-token persistence (provider → store) ✓,
+    refresh failure / `invalid_grant` (`InvalidGrantError`) ✓, restart survival
+    (provider backed by durable encrypted store) ✓.
+- **Why not the transport `authProvider` auto-path:** the SDK's
+  `StreamableHTTPClientTransport({ authProvider })` auto-refreshs on 401 and, on
+  refresh failure / no token, calls `redirectToAuthorization` and throws
+  `UnauthorizedError` — a semantic that expects a human to complete a browser
+  flow. That does **not** fit the connector's headless-forwarding model: a
+  downstream tool call must either succeed (after a refresh) or return a
+  structured `reauth-required` MCP error, not throw-and-wait-for-browser. By
+  attaching the bearer token explicitly and managing refresh itself, the
+  connector keeps full control of the G2 invariants (atomic rotation
+  persistence, per-grant serialization, terminal `invalid_grant` → reauth state)
+  and of the error surface toward the downstream client. The SDK's
+  **functions** (proven PKCE/DCR/refresh crypto correctness) are still used.
+- **Why not v2 split packages:** v1.30.0 combined package already provides the
+  full OAuth surface above. Upgrading to a fresh major mid-auth adds migration
+  risk with no benefit. Not taken.
+- **Constraint check:** No change to architecture (D-01..D-08). The stateless
+  path (D-08) is preserved; the upstream leg attaches a bearer header per
+  request. `openid-client` is not added (fewer dependencies, single source of
+  MCP-OAuth truth).
+
+## D-13 — Downstream client authentication boundary (Phase 3 entry)
+
+- **Status:** **DECIDED (2026-08-10)** — Phase 3 entry (M3). Defines the
+  production downstream auth boundary validated by G1 (bearer `api_key`, no
+  custom headers). Refines D-05 to an implementation definition.
+- **Decision:**
+  - **Mechanism:** every downstream MCP request to the connector must carry
+    `Authorization: Bearer <connector-api-key>`. This is exactly the mechanism G1
+    confirmed OpenHands Cloud uses (it transmits `api_key` as
+    `Authorization: Bearer <key>`).
+  - **Where stored:** the connector API key is stored as a **scrypt hash** in the
+    SQLite store (never plaintext). scrypt (salt + N/r/p parameters) resists
+    brute force and is constant-time to verify.
+  - **How provisioned:** via `MCPRELAY_CONNECTOR_API_KEY` env var. On startup, if
+    no key is present in the store, the connector ingests the env value, hashes
+    it (scrypt), and stores the hash. If a key is already stored, the env value
+    (if provided) is compared against the stored hash and a mismatch is a
+    configuration error (prevents silent key drift). MVP: single shared key.
+  - **How rotated:** set a new `MCPRELAY_CONNECTOR_API_KEY`, restart the
+    connector → it re-hashes and stores the new key (the old hash is replaced).
+    Documented procedure for the MVP; a rotation CLI is Phase 8.
+  - **How validated:** for each downstream request, the connector extracts the
+    bearer token from `Authorization`, runs scrypt verify against the stored
+    hash. Missing/invalid → **HTTP 401** with a `WWW-Authenticate`-style
+    challenge, no token echoed. Valid → request proceeds.
+  - **When invalid:** 401, generic error, no secret material in the response or
+    logs. The downstream client (OpenHands Cloud) sees a standard 401.
+  - **Kept out of logs:** the key is **never** logged. Log only a non-reversible
+    key fingerprint (e.g. first 4 chars + length, as G1's test server did:
+    `Bearer g***P(len=32)`). Redaction is enforced in the logging path.
+- **Rationale:** scrypt-hashed storage means a DB-file leak (D-10) does not
+  reveal the downstream key. Constant-time scrypt verify prevents timing
+  attacks. The bearer mechanism is the one G1 proved compatible with OpenHands
+  Cloud — no custom headers, no interactive OAuth downstream (D-05).
+- **Constraint check:** compatible with OpenHands Cloud (G1) ✓; key never
+  plaintext at rest ✓; constant-time verify ✓; no secret in logs/responses ✓;
+  rotation without data loss ✓ (env + restart). Per-client keys deferred to
+  Phase 8 (RISKS S3).
 
 ## Summary of decision status
 
@@ -240,14 +423,15 @@
 | D-02 | Connector owns upstream auth; client never sees upstream creds | Resolved |
 | D-03 | Notion first, but connector stays domain-agnostic | Resolved |
 | D-04 | Multi-tenant data model now, multi-tenancy later | Resolved |
-| D-05 | Downstream MVP auth = connector API key (bearer) | Resolved (confirmed by G1) |
+| D-05 | Downstream MVP auth = connector API key (bearer) | Resolved (confirmed by G1; refined by D-13) |
 | D-06 | Advertise mediated intersection of capabilities | Resolved |
 | D-07 | Transparent JSON-RPC forwarding | Resolved |
-| D-08 | MVP may be stateless; SSE is additive | **Confirmed (2026-08-10, G4)** — stateless Streamable HTTP works for the minimal relay |
-| D-09 | Language/runtime + deployment target | **DECIDED (2026-08-10)** — TypeScript/Node.js + `@modelcontextprotocol/sdk`; SQLite creds; Docker + reverse-proxy TLS |
-| D-10 | Credential-store backend + master key | Deferred — decide at M3 (Phase 3) |
-| D-11 | Operator OAuth consent UX | Deferred — decide at M3 (Phase 3) |
-| D-12 | MCP SDK package/version (Phase 2) | **DECIDED (2026-08-10)** — combined `@modelcontextprotocol/sdk` v1.30.0; revisit at Phase 3 |
+| D-08 | MVP may be stateless; SSE is additive | **Confirmed (2026-08-10, G4; re-confirmed Phase 3 stateful/stateless check)** — stateless Streamable HTTP sufficient for the Notion upstream |
+| D-09 | Language/runtime + deployment target | **DECIDED (2026-08-10)** — TypeScript/Node.js + `@modelcontextprotocol/sdk`; SQLite creds; Docker + reverse-proxy TLS. (openid-client dropped per D-12) |
+| D-10 | Credential-store backend + master key | **DECIDED (2026-08-10, Phase 3 entry)** — SQLite + field-level AES-256-GCM; master key from `MCPRELAY_MASTER_KEY` env; fail-fast if absent |
+| D-11 | Operator OAuth consent UX | **DECIDED (2026-08-10, Phase 3 entry)** — connector-hosted browser flow (`/oauth/authorize` + `/oauth/callback`) |
+| D-12 | MCP SDK package/version + OAuth path | **DECIDED (2026-08-10, Phase 3 entry)** — remain on combined `@modelcontextprotocol/sdk` v1.30.0; use native `./client/auth.js` helpers; no `openid-client`; no transport `authProvider` auto-path |
+| D-13 | Downstream client auth boundary | **DECIDED (2026-08-10, Phase 3 entry)** — bearer `api_key`; scrypt-hashed in store; provisioned via `MCPRELAY_CONNECTOR_API_KEY`; 401 on invalid |
 
 ## Gate-status record
 
@@ -295,5 +479,30 @@ the gate-mapped list.)
    TLS-terminating reverse proxy with a persistent volume. Go rejected
    (client OAuth experimental in the official Go SDK); Python a close-second
    fallback. See [DECISIONS.md §D-09](DECISIONS.md#d-09--implementation-languageruntime-and-deployment-target).
-5. **D-10 (M3):** Credential-store backend and master-key source.
-6. **D-11 (M3):** Operator OAuth consent UX.
+5. **D-10 (M3):** Credential-store backend and master-key source — **DECIDED
+   (2026-08-10):** SQLite (better-sqlite3) on a persistent volume
+   (`MCPRELAY_DB_PATH`); field-level AES-256-GCM encryption for secrets; master
+   key from `MCPRELAY_MASTER_KEY` env (32-byte base64); fail-fast if absent;
+   rotation via re-encryption (documented). See
+   [DECISIONS.md §D-10](DECISIONS.md#d-10--credential-store-backend-and-master-key-source-phase-3-entry).
+6. **D-11 (M3):** Operator OAuth consent UX — **DECIDED (2026-08-10):**
+   connector-hosted browser flow — `GET /oauth/authorize` (PKCE S256 + state,
+   redirect to Notion) + `GET /oauth/callback` (validate, exchange, persist).
+   Re-auth = revisit `/oauth/authorize`. See
+   [DECISIONS.md §D-11](DECISIONS.md#d-11--operator-oauth-consent-ux-phase-3-entry).
+7. **D-12 (M3):** MCP SDK package/version + OAuth implementation path —
+   **DECIDED (2026-08-10):** remain on combined `@modelcontextprotocol/sdk`
+   v1.30.0; use its native `./client/auth.js` OAuth helpers (discovery/DCR/PKCE
+   S256/exchange/refresh/rotation + `InvalidGrantError`); no `openid-client`; no
+   transport `authProvider` auto-path (explicit bearer + managed refresh). See
+   [DECISIONS.md §D-12](DECISIONS.md#d-12--mcp-sdk-packageversion-and-oauth-implementation-path-phase-3-entry).
+8. **D-13 (M3):** Downstream client auth boundary — **DECIDED (2026-08-10):**
+   bearer `api_key` (G1-compatible); scrypt-hashed in the store; provisioned via
+   `MCPRELAY_CONNECTOR_API_KEY`; 401 + `WWW-Authenticate` on invalid; key never
+   logged (fingerprint only). See
+   [DECISIONS.md §D-13](DECISIONS.md#d-13--downstream-client-authentication-boundary-phase-3-entry).
+9. **Stateful/stateless check (Phase 3 entry):** **DECIDED (2026-08-10)** —
+   stateless Streamable HTTP is sufficient for Notion's hosted MCP (all
+   documentation-workflow tools are request/response `tools/call`; SSE
+   notifications / long-lived upstream sessions not required). D-08 unchanged. See
+   [DECISIONS.md §D-08](DECISIONS.md#d-08--mvp-may-run-stateless-no-sse-where-mcp-allows-sse-streaming-is-additive).

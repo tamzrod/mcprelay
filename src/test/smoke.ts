@@ -36,7 +36,7 @@ async function throughConnector() {
   const upstreamClient = createUpstreamClient(upstream.url);
   await upstreamClient.connect();
   const relay = createRelay(upstreamClient);
-  const downstream = createDownstreamServer(19202, relay);
+  const downstream = createDownstreamServer({ port: 19202, relay });
   await downstream.start();
   console.log("[smoke-connector] connector at", downstream.url, "upstream", upstream.url);
 

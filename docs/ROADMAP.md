@@ -37,7 +37,7 @@ pass *before* any connector code is written (Phase 2).
 | G2 — Notion OAuth behavior confirmed | Phase 1 | Phase 3 onward | **PASS (2026-08-10)** — see [evidence/G2.md](evidence/G2.md) |
 | G3 — Notion MCP tool surface confirmed sufficient | Phase 1 | Phase 5 onward | **SUFFICIENT (2026-08-10)** — see [evidence/G3.md](evidence/G3.md) |
 | G4 — Minimal connector forwards MCP (mock upstream) | Phase 2 | Phase 3 onward | **PASS (2026-08-10)** — see [evidence/G4.md](evidence/G4.md) |
-| G5 — Auth boundary holds (OAuth + secure store + refresh + restart) | Phase 3 | Phase 4 onward | Not started |
+| G5 — Auth boundary holds (OAuth + secure store + refresh + restart) | Phase 3 | Phase 4 onward | **PASS (2026-08-10)** — see [evidence/G5.md](evidence/G5.md) |
 | G6 — OpenHands Cloud connects via connector, no upstream creds in sandbox | Phase 4 | Phase 5 onward | Not started |
 | G7 — Complete technical path OpenHands→Connector→Notion validated | Phase 5 | Phase 6 onward | Not started |
 | G8 — MVP complete: full 10-step end-to-end demonstration, reproducible | Phase 6 | Phase 7 onward | Not started |
@@ -83,8 +83,11 @@ pass *before* any connector code is written (Phase 2).
 > **PHASE 2 STATUS: COMPLETE** (G4 = PASS, 2026-08-10). Minimal connector
 > forwards MCP against a mock upstream over Streamable HTTP (stateless) with no
 > auth, no Notion, no credential store. See [evidence/G4.md](evidence/G4.md).
-> The project is now at the Phase 3 entry point; Phase 3 has **not** been
-> started.
+>
+> **PHASE 3 ENTRY DECISIONS: COMPLETE (2026-08-10).** D-10/D-11/D-12 decided,
+> stateful/stateless check done, downstream auth defined (D-13). Phase 3
+> implementation is unblocked. See [DECISIONS.md](DECISIONS.md)
+> §D-08/§D-10/§D-11/§D-12/§D-13.
 
 ---
 
@@ -226,6 +229,30 @@ pass *before* any connector code is written (Phase 2).
   that cannot persist credentials safely.
 - **Decision required:** D-10 (credential-store backend + master key), D-11
   (operator consent UX) — both must be decided at Phase 3 entry.
+- **Phase 3 entry decisions (recorded 2026-08-10):** All Phase 3 entry
+  prerequisites are **DECIDED**, unblocking implementation:
+  - **D-10 = DECIDED** — SQLite (`better-sqlite3`) on a persistent volume
+    (`MCPRELAY_DB_PATH`); field-level AES-256-GCM encryption for secrets; master
+    key from `MCPRELAY_MASTER_KEY` env (32-byte base64); fail-fast if absent.
+  - **D-11 = DECIDED** — connector-hosted browser flow (`GET /oauth/authorize`
+    + `GET /oauth/callback`); re-auth = revisit `/oauth/authorize`.
+  - **D-12 = DECIDED** — remain on `@modelcontextprotocol/sdk` v1.30.0; use its
+    native `./client/auth.js` OAuth helpers; no `openid-client`; no transport
+    `authProvider` auto-path (explicit bearer + managed refresh).
+  - **Stateful/stateless check = DECIDED** — stateless Streamable HTTP is
+    sufficient for Notion's hosted MCP; D-08 unchanged.
+  - **D-13 = DECIDED (downstream auth)** — bearer `api_key` (G1-compatible);
+    scrypt-hashed in store; provisioned via `MCPRELAY_CONNECTOR_API_KEY`; 401 on
+    invalid; never logged.
+  - See [DECISIONS.md](DECISIONS.md) §D-08/§D-10/§D-11/§D-12/§D-13.
+- **Status:** **COMPLETE (2026-08-10).** G5 = PASS. Implemented the credential
+  store (`src/store/`), OAuth manager (`src/auth/auth-manager.ts`), bearer
+  upstream client + 401-refresh-retry, downstream API-key gate + `/oauth`
+  consent routes. 13/13 tests pass (10 Phase 3 auth + 3 Phase 2 regression);
+  end-to-end driver confirms the full boundary. The G2 lifecycle (discovery →
+  DCR → PKCE → exchange → refresh → rotation → `invalid_grant` → restart) is
+  validated against a mock auth server (no real Notion credentials in tests).
+  Evidence: [evidence/G5.md](evidence/G5.md). Phase 4 **unblocked**.
 
 ---
 

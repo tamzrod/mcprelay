@@ -34,7 +34,7 @@ async function startHarness(upstreamPort: number, connectorPort: number): Promis
   const upstreamClient = createUpstreamClient(upstream.url);
   await upstreamClient.connect();
   const relay = createRelay(upstreamClient);
-  const downstream = createDownstreamServer(connectorPort, relay);
+  const downstream = createDownstreamServer({ port: connectorPort, relay });
   await downstream.start();
 
   return {

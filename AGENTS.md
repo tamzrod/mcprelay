@@ -1,4 +1,4 @@
-# AGENTS.md — MCP Connector repository memory
+# AGENTS.md â€” MCP Connector repository memory
 
 Repository-specific knowledge for the MCP Connector project. Loaded
 automatically each session.
@@ -6,6 +6,16 @@ automatically each session.
 ## Project state
 
 - **Phase:** Phase 0 (architecture baseline) COMPLETE. **Phase 1 COMPLETE.**
+  **Phase 2 COMPLETE (G4 = PASS).** **Phase 3 COMPLETE (G5 = PASS,
+  2026-08-10).** The auth boundary holds: downstream bearer API-key gate;
+  connector-hosted operator OAuth consent (`/oauth/authorize` +
+  `/oauth/callback`); Notion OAuth lifecycle (discovery → DCR → PKCE → exchange
+  → refresh → rotation → `invalid_grant` → restart survival) via the SDK's
+  first-party helpers; encrypted SQLite credential store (AES-256-GCM, atomic
+  rotation, per-grant mutex); authenticated upstream MCP connection via explicit
+  bearer header + 401-refresh-retry; no upstream credentials ever reach the
+  downstream client. Validated against a mock auth server (no real Notion
+  credentials in tests). Evidence: docs/evidence/G5.md. **Phase 4 is unblocked.**
   All three Phase 1 gates passed: **G1 = PASS** (OpenHands Cloud consumes a
   bearer `api_key` SHTTP MCP endpoint, no OAuth, no custom headers;
   docs/evidence/G1.md); **G2 = PASS** (Notion hosted MCP is OAuth 2.0 Auth Code
@@ -16,12 +26,20 @@ automatically each session.
   `notion-create-pages`/`notion-update-page` for create/update, and
   `notion-get-comments` for reading comments; docs/evidence/G3.md). **D-09 =
   DECIDED (2026-08-10):** TypeScript/Node.js + `@modelcontextprotocol/sdk`
-  (server + client Streamable HTTP), first-party MCP OAuth client helpers +
-  `openid-client` for upstream PKCE/DCR/refresh, **SQLite** credential store
-  (encrypted at rest), deployed as a **Docker container** behind a
-  TLS-terminating reverse proxy with a persistent volume. Phase 1 exit gate
-  satisfied; **Phase 2 is unblocked.** **No implementation exists yet** -- Phase
-  2 has not started (per current instructions).
+  (server + client Streamable HTTP), first-party MCP OAuth client helpers in
+  `@modelcontextprotocol/sdk/client/auth.js` (NO `openid-client` â€” SDK helpers
+  are sufficient per D-12), **SQLite** credential store (field-level AES-256-GCM
+  at rest, master key from `MCPRELAY_MASTER_KEY` env), deployed as a **Docker
+  container** behind a TLS-terminating reverse proxy with a persistent volume.
+  **Phase 3 entry decisions (2026-08-10):** D-10 (SQLite + field-level
+  AES-256-GCM + env master key), D-11 (connector-hosted `/oauth/authorize` +
+  `/oauth/callback` browser flow), D-12 (remain on SDK v1.30.0; native auth
+  helpers; no `openid-client`; no transport `authProvider` auto-path â€” explicit
+  bearer + managed refresh), stateful/stateless check (stateless sufficient for
+  Notion; D-08 unchanged), D-13 (downstream bearer `api_key`, scrypt-hashed,
+  `MCPRELAY_CONNECTOR_API_KEY`). Phase 2 exit gate satisfied; Phase 3 entry
+  prerequisites satisfied; **Phase 3 implementation in progress (G5 not yet
+  passed).**
 - **Roadmap is a strict gated contract:** a later phase MUST NOT begin until the
   previous phase's exit gate is satisfied and documented. "Code exists" is not
   completion.
@@ -33,22 +51,22 @@ automatically each session.
 
 ## Documentation set (the deliverable of this phase)
 
-- `README.md` — concise overview + doc index.
-- `docs/PROBLEM.md` — the OpenHands Cloud ↔ authenticated-remote-MCP gap.
-- `docs/ARCHITECTURE.md` — components, boundaries, alternatives.
-- `docs/AUTHENTICATION.md` — OAuth/credential handling; no upstream creds in sandbox.
-- `docs/MCP-FLOW.md` — downstream/upstream MCP communication.
-- `docs/ROADMAP.md` — phased plan (Phase 0–6).
-- `docs/MILESTONES.md` — measurable milestones + acceptance criteria (M3 = MVP).
-- `docs/RISKS.md` — technical/security/arch/ops/process risks.
-- `docs/DECISIONS.md` — architectural decision records + rationale.
+- `README.md` â€” concise overview + doc index.
+- `docs/PROBLEM.md` â€” the OpenHands Cloud â†” authenticated-remote-MCP gap.
+- `docs/ARCHITECTURE.md` â€” components, boundaries, alternatives.
+- `docs/AUTHENTICATION.md` â€” OAuth/credential handling; no upstream creds in sandbox.
+- `docs/MCP-FLOW.md` â€” downstream/upstream MCP communication.
+- `docs/ROADMAP.md` â€” phased plan (Phase 0â€“6).
+- `docs/MILESTONES.md` â€” measurable milestones + acceptance criteria (M3 = MVP).
+- `docs/RISKS.md` â€” technical/security/arch/ops/process risks.
+- `docs/DECISIONS.md` â€” architectural decision records + rationale.
 
-## Key confirmed facts (from official docs — cite, don't re-derive)
+## Key confirmed facts (from official docs â€” cite, don't re-derive)
 
 - MCP remote transport = **Streamable HTTP** (POST + optional GET SSE); the
   2024-11-05 HTTP+SSE transport is deprecated. `stdio` is local-only.
 - MCP authorization = **OAuth 2.1 + PKCE**, RFC 9470 (Protected Resource
-  Metadata) → RFC 8414 (Authorization Server Metadata) discovery, optional
+  Metadata) â†’ RFC 8414 (Authorization Server Metadata) discovery, optional
   RFC 7591 Dynamic Client Registration. Bearer token on every request; 401 on
   expired/invalid.
 - **Notion hosted MCP** (`https://mcp.notion.com/mcp`) is **OAuth-only**, requires
@@ -66,7 +84,7 @@ automatically each session.
    downstream, MCP client upstream.
 2. **Upstream credentials never reach the downstream client/sandbox** (D-02).
 3. **No domain/business logic** (Notion-specific or otherwise) in the connector
-   (D-03/D-07) — forward JSON-RPC transparently.
+   (D-03/D-07) â€” forward JSON-RPC transparently.
 4. **MVP** = OpenHands Cloud securely accesses Notion MCP through the connector
    with no Notion credential in the OpenHands sandbox. MVP technical path
    validated at **G7 (M5)**; MVP complete at **G8 (M6)** (the full 10-step
@@ -77,16 +95,30 @@ automatically each session.
 
 ## Deferred decisions (resolve before the indicated gate)
 
-- G1/G2/G3 (Phase 1, M1) — validate OpenHands Cloud `api_key` consumption,
+- G1/G2/G3 (Phase 1, M1) â€” validate OpenHands Cloud `api_key` consumption,
   Notion OAuth token lifecycle, Notion tool surface. **G1 = PASS,
   G2 = PASS, G3 = SUFFICIENT (2026-08-10)**; all done.
-- D-09 language/runtime + deploy target — **DECIDED (2026-08-10)**:
+- D-09 language/runtime + deploy target â€” **DECIDED (2026-08-10)**:
   TypeScript/Node.js + `@modelcontextprotocol/sdk`; SQLite creds; Docker +
   reverse-proxy TLS. Phase 1 COMPLETE; Phase 2 unblocked.
-- D-10 credential-store backend + master key — at M3 (Phase 3).
-- D-11 operator OAuth consent UX — at M3 (Phase 3).
+- D-10 credential-store backend + master key â€” **DECIDED (2026-08-10, Phase 3
+  entry)**: SQLite (`better-sqlite3`) + field-level AES-256-GCM; master key from
+  `MCPRELAY_MASTER_KEY` env (32-byte base64); fail-fast if absent. See
+  docs/DECISIONS.md Â§D-10.
+- D-11 operator OAuth consent UX â€” **DECIDED (2026-08-10, Phase 3 entry)**:
+  connector-hosted browser flow (`/oauth/authorize` + `/oauth/callback`). See
+  docs/DECISIONS.md Â§D-11.
+- D-12 MCP SDK version + OAuth path â€” **DECIDED (2026-08-10, Phase 3 entry)**:
+  remain on `@modelcontextprotocol/sdk` v1.30.0; use native `./client/auth.js`
+  helpers; NO `openid-client`; NO transport `authProvider` auto-path. See
+  docs/DECISIONS.md Â§D-12.
+- D-13 downstream client auth boundary â€” **DECIDED (2026-08-10, Phase 3
+  entry)**: bearer `api_key` (G1-compatible); scrypt-hashed in store;
+  `MCPRELAY_CONNECTOR_API_KEY`; 401 on invalid. See docs/DECISIONS.md Â§D-13.
+- Stateful/stateless check (Phase 3 entry) â€” **DECIDED (2026-08-10)**:
+  stateless Streamable HTTP sufficient for Notion hosted MCP; D-08 unchanged.
 
-## OpenHands Cloud — how it picks up MCP servers (G1 findings)
+## OpenHands Cloud â€” how it picks up MCP servers (G1 findings)
 
 Confirmed experimentally 2026-08-10. Relevant for the connector's downstream
 interface and for setting up any validation conversation:
@@ -94,7 +126,7 @@ interface and for setting up any validation conversation:
 - Cloud conversations read MCP config from **stored user settings**
   (`agent_settings.mcp_config`), NOT from a per-conversation override. A
   `POST /api/v1/app-conversations` body may include `agent_settings.mcp_config`
-  and returns HTTP 202, but it is **silently ignored** — the agent sees no MCP
+  and returns HTTP 202, but it is **silently ignored** â€” the agent sees no MCP
   tools. Set the config **before** starting the conversation.
 - Settings are updated via `POST /api/v1/settings` with an
   **`agent_settings_diff`** payload (deep-merged). The legacy `agent_settings`
@@ -102,7 +134,7 @@ interface and for setting up any validation conversation:
   of legacy keys").
 - Stored MCP config uses the SDK dict shape, e.g.
   `{"shttp": {"url": "...", "api_key": "...", "enabled": true}}`. The server
-  normalizes `api_key` to `auth: {strategy: "api_key", value: "***"}` — a
+  normalizes `api_key` to `auth: {strategy: "api_key", value: "***"}` â€” a
   first-class auth strategy distinct from OAuth.
 - OpenHands transmits `api_key` to the MCP server as
   `Authorization: Bearer <key>`. No custom headers are supported/needed.
@@ -113,22 +145,22 @@ interface and for setting up any validation conversation:
   Event search `sort_order` accepts `TIMESTAMP` (asc) or `TIMESTAMP_DESC`, NOT
   `TIMESTAMP_ASC`.
 
-## Notion hosted MCP — OAuth lifecycle (G2 findings)
+## Notion hosted MCP â€” OAuth lifecycle (G2 findings)
 
 Confirmed from official Notion docs (developers.notion.com/guides/mcp/build-mcp-client)
 2026-08-10. Authoritative for the connector's upstream credential subsystem:
 
 - **Auth model:** OAuth 2.0 Authorization Code + PKCE (S256) + Dynamic Client
   Registration (RFC 7591). Built on Cloudflare `workers-oauth-provider`.
-  **OAuth-only, browser-consent-based — no upstream API key** for the hosted
+  **OAuth-only, browser-consent-based â€” no upstream API key** for the hosted
   MCP (`https://mcp.notion.com/mcp`; SSE alt `/sse`).
-- **Discovery:** MCP 401 `WWW-Authenticate` → `/.well-known/oauth-protected-resource`
-  (RFC 9728) → `/.well-known/oauth-authorization-server` (RFC 8414) →
+- **Discovery:** MCP 401 `WWW-Authenticate` â†’ `/.well-known/oauth-protected-resource`
+  (RFC 9728) â†’ `/.well-known/oauth-authorization-server` (RFC 8414) â†’
   `registration_endpoint` (DCR).
 - **DCR credentials (`client_id`/`client_secret`) MUST be persisted and reused**
-  — re-registering orphans prior grants. CIMD is a supported alternative.
-- **Access token:** ~8h, but "subject to change" — **always drive off
-  `expires_in`**, never hardcode. Refresh 5–10 min before expiry.
+  â€” re-registering orphans prior grants. CIMD is a supported alternative.
+- **Access token:** ~8h, but "subject to change" â€” **always drive off
+  `expires_in`**, never hardcode. Refresh 5â€“10 min before expiry.
 - **Refresh token:** issued on every token response; **rotates on every refresh**
   (new `refresh_token` returned, old retired). Expires at whichever comes first:
   **180-day absolute cap from first authorization (does NOT slide)** or **30
@@ -142,12 +174,12 @@ Confirmed from official Notion docs (developers.notion.com/guides/mcp/build-mcp-
   refresh per grant** (mutex/distributed lock).
 - **Restart:** credentials survive restart **iff** DCR creds + latest rotated
   refresh token were durably persisted. Crash mid-rotation that loses the new
-  refresh token kills the connection (old one retired) → re-authorize.
+  refresh token kills the connection (old one retired) â†’ re-authorize.
 - **Periodic reconnection is expected** (180-day cap / 30-day idle), not
-  exceptional — consent UX must be easy to reach (validates D-11).
+  exceptional â€” consent UX must be easy to reach (validates D-11).
 - Live confirmation of rotation/`invalid_grant` scheduled for **G5 (Phase 3)**.
 
-## Notion hosted MCP — tool surface (G3 findings)
+## Notion hosted MCP â€” tool surface (G3 findings)
 
 Confirmed from official Notion docs (developers.notion.com/guides/mcp/mcp-supported-tools)
 2026-08-10. The hosted MCP at `https://mcp.notion.com/mcp` exposes the tools
@@ -164,7 +196,7 @@ the documentation workflow needs:
   markdown commands include `replace_content` / `replace_content_range`;
   supports `apply_template`).
 - **Read comments:** `notion-get-comments` (lists all comments/discussions on a
-  page — block-level, inline, resolved threads, full content).
+  page â€” block-level, inline, resolved threads, full content).
 - **Create comment (optional):** `notion-create-comment` (page/block/reply).
 
 **Gaps that do NOT block the stated workflow:** block-level surgical edits
@@ -172,23 +204,23 @@ absent (page-level markdown update is sufficient for docs); files/webhooks
 absent; data-source querying (`notion-query-data-sources`,
 `notion-query-meeting-notes`) is plan-gated (Enterprise + Notion AI). If
 block-precise editing becomes a hard requirement later, the fallback is the
-ARCHITECTURE.md §4-C path (open-source `makenotion/notion-mcp-server` or Notion
-REST block API) — not a G3 failure.
+ARCHITECTURE.md Â§4-C path (open-source `makenotion/notion-mcp-server` or Notion
+REST block API) â€” not a G3 failure.
 
 **Implication for the connector:** forward Notion's tool list transparently
 (intersection with connector mediation policy, D-06); forward markdown
 payloads transparently (no content-shape transformation, D-07); advertise only
-what the upstream exposes at runtime (discovery-driven, not hardcoded — tool
+what the upstream exposes at runtime (discovery-driven, not hardcoded â€” tool
 surface is not static). Live end-to-end exercise through the connector is a
 **G7 (Phase 5)** target.
 
 ## D-09 stack decision (Phase 1, M1)
 
 **DECIDED (2026-08-10).** Phase 2 implements this stack. Full rationale in
-docs/DECISIONS.md §D-09.
+docs/DECISIONS.md Â§D-09.
 
 - **Language/runtime:** TypeScript on Node.js (long-running single process).
-- **MCP SDK:** official `@modelcontextprotocol/sdk` — `@modelcontextprotocol/server`
+- **MCP SDK:** official `@modelcontextprotocol/sdk` â€” `@modelcontextprotocol/server`
   (Streamable HTTP server, toward OpenHands) + `@modelcontextprotocol/client`
   (Streamable HTTP client, toward Notion); runtime middleware
   (`@modelcontextprotocol/node` / express / fastify / hono) as needed.
@@ -206,7 +238,7 @@ docs/DECISIONS.md §D-09.
   VPS/cloud droplet, behind a reverse proxy terminating TLS (Caddy auto-TLS or
   Nginx), persistent volume for the SQLite store, restart via Docker restart
   policy. Secrets via env (dev) / secrets manager (prod), never in VCS.
-- **Rejected:** Go (official Go SDK marks client-side OAuth "experimental" —
+- **Rejected:** Go (official Go SDK marks client-side OAuth "experimental" â€”
   the project's hardest requirement; excellent concurrency/deploy but wrong risk
   profile). Python (strong, proven in G1 via authlib; close-second fallback if
   TypeScript SDK issues surface; needs single-worker discipline for refresh
@@ -244,9 +276,9 @@ D-10, D-11).
 - **Run connector:** `npm run connector`
   (`MCPRELAY_UPSTREAM_URL`, `MCPRELAY_PORT`, `MCPRELAY_HOST` env; defaults
   `http://127.0.0.1:8788/mcp`, `8789`, `127.0.0.1`).
-- **Tests:** `npm test` — `node --test dist/test/integration.test.js` (3 cases:
+- **Tests:** `npm test` â€” `node --test dist/test/integration.test.js` (3 cases:
   initialize+list, call-through, no-extra-tools). Run `npm run build` first.
-- **Smoke:** `npm run smoke` — direct (client→mock) and relay (client→connector→mock).
+- **Smoke:** `npm run smoke` â€” direct (clientâ†’mock) and relay (clientâ†’connectorâ†’mock).
 - **MCP SDK:** official `@modelcontextprotocol/sdk` 1.30.0 (ESM). Server side:
   `Server` + `StreamableHTTPServerTransport`. Client side: `Client` +
   `StreamableHTTPClientTransport`. State only in the relay/upstream client;
@@ -254,3 +286,32 @@ D-10, D-11).
   D-08).
 - **Phase boundaries:** `src/{downstream,upstream,relay,test}` + `connector.ts`.
   Keep the relay generic (no upstream business logic).
+
+### Build / test / auth conventions (Phase 3 implementation, per D-10..D-13)
+
+- **New dependencies:** `better-sqlite3` (synchronous SQLite, ACID rotation).
+  The SDK's OAuth helpers (`@modelcontextprotocol/sdk/client/auth.js`) + its
+  transitive `pkce-challenge` already provide PKCE S256 / DCR / refresh â€”
+  **no `openid-client`** (D-12).
+- **Credential store (D-10):** `better-sqlite3` single file at
+  `MCPRELAY_DB_PATH` (default `./data/connector.db`); secrets encrypted
+  field-level with AES-256-GCM keyed by `MCPRELAY_MASTER_KEY` (32-byte base64;
+  fail-fast if missing). Atomic `(access_token, refresh_token)` rotation in one
+  transaction; per-grant mutex serializes refresh (G2).
+- **Downstream auth (D-13):** every downstream request needs
+  `Authorization: Bearer <key>`; the key is scrypt-hashed in the store,
+  provisioned from `MCPRELAY_CONNECTOR_API_KEY`; 401 on invalid. Never log the
+  key (fingerprint only).
+- **Operator OAuth (D-11):** connector serves `GET /oauth/authorize` (PKCE S256
+  + state â†’ redirect to Notion) and `GET /oauth/callback` (validate state+PKCE,
+  exchange, persist encrypted). Re-auth = revisit `/oauth/authorize`.
+- **Upstream OAuth (D-12):** use the SDK's `discoverOAuthServerInfo`,
+  `registerClient`, `startAuthorization`, `exchangeAuthorization`,
+  `refreshAuthorization` + `OAuthClientProvider` backed by the store. Attach
+  `Authorization: Bearer <token>` to upstream requests explicitly (NOT the
+  transport `authProvider` auto-path). Proactive refresh before `expires_in`; on
+  401 one refresh+retry; on `invalid_grant` (`InvalidGrantError`) mark
+  `requires_reauth` terminal (clear tokens, no retry loop).
+- **Security invariants (Phase 3):** never store OAuth tokens in source; never
+  commit secrets; never log access/refresh tokens or the downstream key; never
+  return upstream credentials through MCP; use test credentials only in tests.

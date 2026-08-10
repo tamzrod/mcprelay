@@ -21,3 +21,9 @@ npm-debug.log*
 # Test artifacts
 coverage/
 .nyc_output/
+
+# Credential store (SQLite, contains encrypted secrets) — never commit
+data/
+*.db
+*.db-shm
+*.db-wal

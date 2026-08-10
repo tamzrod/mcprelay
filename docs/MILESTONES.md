@@ -128,7 +128,16 @@ All ten steps must pass. If any critical step fails, the MVP is NOT complete.
   - AC-M3-7: No Notion OAuth token in any downstream-facing response.
 - **Exit gate (G5):** OAuth completes; credentials persisted securely; refresh
   demonstrated; authenticated upstream connection re-established after restart.
-- **Status:** Not started (blocked on M2).
+- **Phase 3 entry decisions (recorded 2026-08-10):** D-10/D-11/D-12 decided,
+  stateful/stateless check done, downstream auth defined (D-13). See
+  [DECISIONS.md](DECISIONS.md) §D-08/§D-10/§D-11/§D-12/§D-13. Implementation
+  unblocked.
+- **Status:** **COMPLETE (2026-08-10).** G5 = PASS. All M3 acceptance criteria
+  met (see [evidence/G5.md](evidence/G5.md)): encrypted credential store
+  (SQLite + AES-256-GCM), full OAuth lifecycle against a mock auth server,
+  refresh-token rotation, restart survival, concurrent-refresh serialization,
+  `invalid_grant` → terminal reauth, authenticated upstream MCP, and no
+  credential leakage downstream. 13/13 tests pass. M4 unblocked.
 
 ## M4 — OpenHands Cloud integration (Phase 4)
 
@@ -248,5 +257,21 @@ All ten steps must pass. If any critical step fails, the MVP is NOT complete.
    (2026-08-10):** TypeScript/Node.js + `@modelcontextprotocol/sdk`, SQLite
    creds, Docker + reverse-proxy TLS. See
    [DECISIONS.md §D-09](DECISIONS.md#d-09--implementation-languageruntime-and-deployment-target).
-5. **D-10 (M3):** Credential-store backend + master-key source.
-6. **D-11 (M3):** Operator OAuth consent UX.
+5. **D-10 (M3):** Credential-store backend + master-key source — **DECIDED
+   (2026-08-10):** SQLite (`better-sqlite3`) + field-level AES-256-GCM; master
+   key from `MCPRELAY_MASTER_KEY` env; fail-fast if absent. See
+   [DECISIONS.md §D-10](DECISIONS.md#d-10--credential-store-backend-and-master-key-source-phase-3-entry).
+6. **D-11 (M3):** Operator OAuth consent UX — **DECIDED (2026-08-10):**
+   connector-hosted browser flow (`/oauth/authorize` + `/oauth/callback`). See
+   [DECISIONS.md §D-11](DECISIONS.md#d-11--operator-oauth-consent-ux-phase-3-entry).
+7. **D-12 (M3):** MCP SDK package/version + OAuth path — **DECIDED
+   (2026-08-10):** remain on `@modelcontextprotocol/sdk` v1.30.0; use native
+   `./client/auth.js` helpers; no `openid-client`; no transport `authProvider`
+   auto-path. See
+   [DECISIONS.md §D-12](DECISIONS.md#d-12--mcp-sdk-packageversion-and-oauth-implementation-path-phase-3-entry).
+8. **D-13 (M3):** Downstream client auth boundary — **DECIDED (2026-08-10):**
+   bearer `api_key`; scrypt-hashed in store; `MCPRELAY_CONNECTOR_API_KEY`; 401
+   on invalid. See
+   [DECISIONS.md §D-13](DECISIONS.md#d-13--downstream-client-authentication-boundary-phase-3-entry).
+9. **Stateful/stateless check (Phase 3 entry):** **DECIDED (2026-08-10)** —
+   stateless Streamable HTTP sufficient for Notion hosted MCP; D-08 unchanged.

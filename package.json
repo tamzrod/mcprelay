@@ -12,15 +12,17 @@
     "clean": "rm -rf dist",
     "mock-upstream": "node dist/test/mock-upstream.js",
     "connector": "node dist/connector.js",
-    "test": "node --test dist/test/integration.test.js",
+    "test": "node --test dist/test/integration.test.js dist/test/auth.test.js",
     "test:integration": "node --test dist/test/integration.test.js",
     "smoke": "node dist/test/smoke.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.30.0",
+    "better-sqlite3": "^13.0.3",
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^22.0.0",
     "typescript": "^5.6.0"
   }
